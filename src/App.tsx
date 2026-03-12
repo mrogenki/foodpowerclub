@@ -458,6 +458,23 @@ const Login = () => {
     setLoading(false);
   };
 
+  const handleForgotPassword = async () => {
+    if (!email) {
+      alert('請先輸入電子郵件');
+      return;
+    }
+    setLoading(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/login`,
+    });
+    if (error) {
+      alert(error.message);
+    } else {
+      alert('重設密碼郵件已發送，請檢查您的信箱');
+    }
+    setLoading(false);
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-stone-50 px-4">
       <div className="max-w-md w-full bg-white rounded-3xl shadow-xl p-8 border border-stone-100">
@@ -479,7 +496,16 @@ const Login = () => {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-stone-700 mb-2">密碼</label>
+            <div className="flex justify-between mb-2">
+              <label className="block text-sm font-medium text-stone-700">密碼</label>
+              <button 
+                type="button"
+                onClick={handleForgotPassword}
+                className="text-xs text-stone-400 hover:text-orange-600 transition-colors"
+              >
+                忘記密碼？
+              </button>
+            </div>
             <input 
               type="password" 
               value={password}
