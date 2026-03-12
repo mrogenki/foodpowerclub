@@ -37,11 +37,37 @@ import { supabase } from './lib/supabase';
 import { cn } from './lib/utils';
 import type { Event, Brand, Partner, Location, Review, KOLReview, Promotion } from './types';
 
+// --- Utilities ---
+
+const uploadImage = async (file: File) => {
+  const fileExt = file.name.split('.').pop();
+  const fileName = `${Math.random().toString(36).substring(2)}.${fileExt}`;
+  const filePath = `uploads/${fileName}`;
+
+  const { data, error } = await supabase.storage
+    .from('images')
+    .upload(filePath, file);
+
+  if (error) {
+    if (error.message.includes('bucket not found')) {
+      throw new Error('Supabase Storage Bucket "images" 未找到。請在 Supabase Console 建立一個名為 "images" 的 Public Bucket。');
+    }
+    throw error;
+  }
+
+  const { data: { publicUrl } } = supabase.storage
+    .from('images')
+    .getPublicUrl(filePath);
+
+  return publicUrl;
+};
+
 // --- Block Editor Components ---
 
 const BlockEditor = ({ initialContent, onChange }: { initialContent?: string, onChange: (content: string) => void }) => {
   const editor: BlockNoteEditor = useCreateBlockNote({
     initialContent: initialContent ? JSON.parse(initialContent) as PartialBlock[] : undefined,
+    uploadFile: uploadImage,
   });
 
   return (
@@ -94,6 +120,81 @@ const BlockNoteRenderer = ({ content }: { content: string }) => {
 };
 
 // --- Components ---
+
+const ImageUpload = ({ value, onChange, label }: { value?: string, onChange: (url: string) => void, label: string }) => {
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    setError(null);
+    try {
+      const url = await uploadImage(file);
+      onChange(url);
+    } catch (err: any) {
+      setError(err.message || '上傳失敗');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      <label className="block text-sm font-medium text-stone-700">{label}</label>
+      <div className="flex items-center gap-4">
+        {value && (
+          <div className="relative w-20 h-20 rounded-xl overflow-hidden border border-stone-200">
+            <img src={value} alt="Preview" className="w-full h-full object-cover" />
+            <button 
+              type="button"
+              onClick={() => onChange('')}
+              className="absolute top-1 right-1 p-1 bg-white/80 rounded-full text-stone-600 hover:text-red-600"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+        )}
+        <div className="flex-1">
+          <div className="relative">
+            <input 
+              type="file" 
+              accept="image/*" 
+              onChange={handleFileChange}
+              className="hidden" 
+              id={`file-upload-${label}`}
+              disabled={uploading}
+            />
+            <label 
+              htmlFor={`file-upload-${label}`}
+              className={cn(
+                "flex items-center justify-center gap-2 px-4 py-2 rounded-xl border-2 border-dashed border-stone-200 text-stone-500 cursor-pointer hover:border-orange-600 hover:text-orange-600 transition-all",
+                uploading && "opacity-50 cursor-not-allowed"
+              )}
+            >
+              {uploading ? '上傳中...' : (
+                <>
+                  <ImageIcon className="w-4 h-4" />
+                  點擊上傳圖片
+                </>
+              )}
+            </label>
+          </div>
+          <input 
+            type="text" 
+            value={value || ''} 
+            onChange={(e) => onChange(e.target.value)}
+            placeholder="或輸入圖片網址"
+            className="mt-2 w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600 text-sm"
+          />
+        </div>
+      </div>
+      {error && <p className="text-xs text-red-600">{error}</p>}
+    </div>
+  );
+};
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -633,18 +734,37 @@ const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const navigate = useNavigate();
+
+  const isConfigured = import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY;
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) {
-      alert(error.message);
-    } else {
-      navigate('/admin');
+    if (!isConfigured) {
+      setError('Supabase 未設定。請在環境變數中設定 VITE_SUPABASE_URL 與 VITE_SUPABASE_ANON_KEY。');
+      return;
     }
-    setLoading(false);
+
+    setLoading(true);
+    setError('');
+    
+    try {
+      const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
+      if (authError) {
+        if (authError.message === 'Failed to fetch') {
+          setError('連線失敗：請檢查您的 Supabase URL 是否正確，以及網路連線是否正常。');
+        } else {
+          setError(authError.message);
+        }
+      } else {
+        navigate('/admin');
+      }
+    } catch (err: any) {
+      setError(err.message || '登入時發生未知錯誤');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -655,6 +775,20 @@ const Login = () => {
           <h2 className="text-2xl font-bold text-stone-900">管理中心登入</h2>
           <p className="text-stone-500">請輸入您的帳號密碼</p>
         </div>
+
+        {!isConfigured && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded-xl text-red-600 text-sm">
+            <p className="font-bold mb-1">⚠️ 系統設定未完成</p>
+            <p>偵測到缺少 Supabase 環境變數。如果您是在 Vercel 部署，請務必在 Vercel Dashboard 設定環境變數。</p>
+          </div>
+        )}
+
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded-xl text-red-600 text-sm">
+            {error}
+          </div>
+        )}
+
         <form onSubmit={handleLogin} className="space-y-6">
           <div>
             <label className="block text-sm font-medium text-stone-700 mb-2">電子郵件</label>
@@ -682,7 +816,7 @@ const Login = () => {
           </div>
           <button 
             type="submit" 
-            disabled={loading}
+            disabled={loading || !isConfigured}
             className="w-full bg-orange-600 text-white py-3 rounded-xl font-bold hover:bg-orange-500 transition-all disabled:opacity-50"
           >
             {loading ? '登入中...' : '立即登入'}
@@ -926,6 +1060,7 @@ const AdminDashboard = () => {
   const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [showEventModal, setShowEventModal] = useState(false);
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
+  const [imageUrl, setImageUrl] = useState('');
   const navigate = useNavigate();
 
   const [eventContent, setEventContent] = useState('');
@@ -942,8 +1077,10 @@ const AdminDashboard = () => {
   useEffect(() => {
     if (editingEvent) {
       setEventContent(editingEvent.content || '');
+      setImageUrl(editingEvent.image_url || '');
     } else {
       setEventContent('');
+      setImageUrl('');
     }
   }, [editingEvent]);
 
@@ -971,7 +1108,7 @@ const AdminDashboard = () => {
       start_date: formData.get('start_date') as string,
       end_date: formData.get('end_date') as string,
       type: formData.get('type') as 'current' | 'past',
-      image_url: formData.get('image_url') as string,
+      image_url: imageUrl,
       video_url: formData.get('video_url') as string,
     };
 
@@ -984,6 +1121,7 @@ const AdminDashboard = () => {
     setShowEventModal(false);
     setEditingEvent(null);
     setEventContent('');
+    setImageUrl('');
     fetchData();
   };
 
@@ -1269,8 +1407,11 @@ const AdminDashboard = () => {
                     </select>
                   </div>
                   <div className="col-span-2">
-                    <label className="block text-sm font-medium text-stone-700 mb-2">封面圖片網址</label>
-                    <input name="image_url" defaultValue={editingEvent?.image_url} className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" required />
+                    <ImageUpload 
+                      label="封面圖片" 
+                      value={imageUrl} 
+                      onChange={setImageUrl} 
+                    />
                   </div>
                   <div className="col-span-2">
                     <label className="block text-sm font-medium text-stone-700 mb-2">影片網址 (YouTube 或 MP4)</label>
