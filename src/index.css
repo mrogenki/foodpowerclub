@@ -5,6 +5,41 @@
   --font-sans: "Inter", "Noto Sans TC", ui-sans-serif, system-ui, sans-serif;
 }
 
+/* BlockNote Custom Styling */
+.blocknote-renderer .bn-editor {
+  padding: 0 !important;
+  background: transparent !important;
+}
+
+.blocknote-renderer .bn-block-content {
+  color: #4b5563; /* text-stone-600 */
+  line-height: 1.75;
+}
+
+.blocknote-renderer h1.bn-inline-content {
+  font-size: 2.25rem;
+  font-weight: 800;
+  color: #1c1917; /* text-stone-900 */
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+}
+
+.blocknote-renderer h2.bn-inline-content {
+  font-size: 1.875rem;
+  font-weight: 700;
+  color: #1c1917;
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.blocknote-renderer h3.bn-inline-content {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #1c1917;
+  margin-top: 1.25rem;
+  margin-bottom: 0.5rem;
+}
+
 body {
   @apply bg-white text-stone-900 antialiased;
 }

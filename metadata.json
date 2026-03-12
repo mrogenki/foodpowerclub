@@ -1,6 +1,6 @@
 {
   "name": "食在力量美食祭 (Food Power Festival)",
-  "description": "一個全方位的美食活動平台，包含近期與過往活動資訊、品牌牆、贊助夥伴介紹、美食地圖以及完整的後台管理系統。",
+  "description": "一個全方位的美食活動平台，包含近期與過往活動資訊、品牌牆、贊助夥伴介紹、美食地圖以及完整的後台管理系統。支持圖文編輯與影片上傳的活動部落格頁面。",
   "requestFramePermissions": [
     "geolocation"
   ]

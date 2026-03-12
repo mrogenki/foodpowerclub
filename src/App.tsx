@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useNavigate, useParams } from 'react-router-dom';
 import { 
   Utensils, 
@@ -20,12 +20,78 @@ import {
   Image as ImageIcon,
   Box,
   Tag,
-  Ticket
+  Ticket,
+  FileText,
+  Video
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { BlockNoteEditor, PartialBlock } from "@blocknote/core";
+import { BlockNoteView } from "@blocknote/mantine";
+import { useCreateBlockNote } from "@blocknote/react";
+import "@blocknote/mantine/style.css";
+import { MantineProvider } from "@mantine/core";
+import "@mantine/core/styles.css";
 import { supabase } from './lib/supabase';
 import { cn } from './lib/utils';
 import type { Event, Brand, Partner, Location, Review, KOLReview, Promotion } from './types';
+
+// --- Block Editor Components ---
+
+const BlockEditor = ({ initialContent, onChange }: { initialContent?: string, onChange: (content: string) => void }) => {
+  const editor: BlockNoteEditor = useCreateBlockNote({
+    initialContent: initialContent ? JSON.parse(initialContent) as PartialBlock[] : undefined,
+  });
+
+  return (
+    <MantineProvider>
+      <div className="border border-stone-200 rounded-xl overflow-hidden min-h-[300px] bg-white">
+        <BlockNoteView 
+          editor={editor} 
+          onChange={() => {
+            onChange(JSON.stringify(editor.document));
+          }}
+          theme="light"
+        />
+      </div>
+    </MantineProvider>
+  );
+};
+
+const BlockRenderer = ({ content }: { content: string }) => {
+  const isJson = useMemo(() => {
+    try {
+      JSON.parse(content);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }, [content]);
+
+  if (isJson) {
+    return <BlockNoteRenderer content={content} />;
+  }
+
+  return (
+    <div className="prose prose-stone max-w-none prose-img:rounded-3xl prose-headings:text-stone-900 prose-p:text-stone-600 prose-p:leading-relaxed prose-a:text-orange-600">
+      <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+    </div>
+  );
+};
+
+const BlockNoteRenderer = ({ content }: { content: string }) => {
+  const blocks = useMemo(() => JSON.parse(content) as PartialBlock[], [content]);
+  const editor = useCreateBlockNote({ initialContent: blocks });
+
+  return (
+    <MantineProvider>
+      <div className="blocknote-renderer prose-none">
+        <BlockNoteView editor={editor} editable={false} theme="light" />
+      </div>
+    </MantineProvider>
+  );
+};
 
 // --- Components ---
 
@@ -42,6 +108,12 @@ const Navbar = () => {
     });
     return () => subscription.unsubscribe();
   }, []);
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setSession(null);
+    window.location.href = '/';
+  };
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-md border-b border-stone-200">
@@ -362,6 +434,65 @@ const Home = () => {
   );
 };
 
+const EventsPage = () => {
+  const [events, setEvents] = useState<Event[]>([]);
+
+  useEffect(() => {
+    const fetchEvents = async () => {
+      const { data } = await supabase.from('events').select('*').order('start_date', { ascending: false });
+      if (data) setEvents(data);
+    };
+    fetchEvents();
+  }, []);
+
+  return (
+    <div className="pt-24 min-h-screen bg-stone-50">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="mb-12 text-center">
+          <h1 className="text-4xl font-bold text-stone-900 mb-4">活動資訊</h1>
+          <p className="text-stone-500 max-w-2xl mx-auto">探索「食在力量美食祭」的所有精彩活動，從過去的經典回顧到現在的熱門盛宴。</p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          {events.map((event) => (
+            <motion.div 
+              key={event.id}
+              whileHover={{ y: -10 }}
+              className="bg-white rounded-3xl overflow-hidden shadow-sm border border-stone-100 group"
+            >
+              <div className="relative h-64 overflow-hidden">
+                <img src={event.image_url} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt={event.title} />
+                <div className="absolute top-4 right-4">
+                  <span className={cn(
+                    "px-3 py-1 rounded-full text-xs font-bold text-white shadow-lg",
+                    event.type === 'current' ? "bg-orange-600" : "bg-stone-400"
+                  )}>
+                    {event.type === 'current' ? "進行中" : "已結束"}
+                  </span>
+                </div>
+              </div>
+              <div className="p-8">
+                <div className="flex items-center gap-2 text-stone-400 text-xs mb-3">
+                  <Calendar className="w-4 h-4" />
+                  <span>{event.start_date} ~ {event.end_date}</span>
+                </div>
+                <h3 className="text-2xl font-bold mb-3 group-hover:text-orange-600 transition-colors">{event.title}</h3>
+                <p className="text-stone-500 text-sm mb-6 line-clamp-2">{event.description}</p>
+                <Link 
+                  to={`/event/${event.id}`} 
+                  className="inline-flex items-center gap-2 text-orange-600 font-bold hover:gap-3 transition-all"
+                >
+                  查看詳情 <ChevronRight className="w-4 h-4" />
+                </Link>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const EventDetail = () => {
   const { id } = useParams();
   const [event, setEvent] = useState<Event | null>(null);
@@ -370,6 +501,7 @@ const EventDetail = () => {
 
   useEffect(() => {
     const fetchData = async () => {
+      if (!id) return;
       const { data: eventData } = await supabase.from('events').select('*').eq('id', id).single();
       const { data: brandsData } = await supabase.from('brands').select('*').eq('event_id', id);
       const { data: partnersData } = await supabase.from('partners').select('*').eq('event_id', id);
@@ -384,55 +516,112 @@ const EventDetail = () => {
   if (!event) return <div className="pt-32 text-center">載入中...</div>;
 
   return (
-    <div className="pt-16 bg-white">
-      <div className="h-[40vh] relative">
+    <div className="pt-16 bg-white min-h-screen">
+      {/* Hero Section */}
+      <div className="h-[60vh] relative overflow-hidden">
         <img src={event.image_url} className="w-full h-full object-cover" alt={event.title} />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent flex items-end p-8">
+        <div className="absolute inset-0 bg-gradient-to-t from-stone-900 via-stone-900/40 to-transparent flex items-end p-8">
           <div className="max-w-7xl mx-auto w-full">
-            <h1 className="text-4xl md:text-6xl font-bold text-white mb-4">{event.title}</h1>
-            <div className="flex gap-4 text-stone-300 text-sm">
-              <span className="flex items-center gap-1"><Calendar className="w-4 h-4" /> {event.start_date} ~ {event.end_date}</span>
-            </div>
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+            >
+              <Link to="/events" className="inline-flex items-center gap-2 text-white/80 hover:text-white mb-6 transition-colors">
+                <ChevronRight className="w-4 h-4 rotate-180" /> 返回活動列表
+              </Link>
+              <div className="flex items-center gap-3 mb-4">
+                <span className={cn(
+                  "px-3 py-1 rounded-full text-xs font-bold text-white",
+                  event.type === 'current' ? "bg-orange-600" : "bg-stone-500"
+                )}>
+                  {event.type === 'current' ? "進行中" : "已結束"}
+                </span>
+                <span className="text-stone-300 text-sm flex items-center gap-1">
+                  <Calendar className="w-4 h-4" /> {event.start_date} ~ {event.end_date}
+                </span>
+              </div>
+              <h1 className="text-4xl md:text-6xl font-bold text-white mb-4">{event.title}</h1>
+            </motion.div>
           </div>
         </div>
       </div>
 
       <div className="max-w-7xl mx-auto px-4 py-16">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-16">
-          <div className="lg:col-span-2">
-            <h2 className="text-2xl font-bold mb-8 border-l-4 border-orange-600 pl-4">品牌牆</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
-              {brands.map(brand => (
-                <div key={brand.id} className="group border border-stone-100 rounded-2xl p-6 hover:shadow-lg transition-all">
-                  <div className="flex items-center gap-4 mb-4">
-                    <img src={brand.logo_url} className="w-16 h-16 rounded-full object-cover bg-stone-100" alt={brand.name} />
-                    <div>
-                      <h3 className="font-bold text-lg">{brand.name}</h3>
-                      <span className="text-xs text-orange-600 bg-orange-50 px-2 py-1 rounded-full">{brand.category}</span>
+          <div className="lg:col-span-2 space-y-16">
+            {/* Blog Content Section */}
+            <section className="bg-white rounded-3xl">
+              <h2 className="text-2xl font-bold mb-8 border-l-4 border-orange-600 pl-4">活動詳情</h2>
+              <BlockRenderer content={event.content || event.long_description || event.description} />
+            </section>
+
+            {/* Video Section */}
+            {event.video_url && (
+              <section>
+                <h2 className="text-2xl font-bold mb-6 border-l-4 border-orange-600 pl-4 text-stone-900">活動影音</h2>
+                <div className="aspect-video rounded-[40px] overflow-hidden bg-stone-100 shadow-2xl border-8 border-white">
+                  {event.video_url.includes('youtube.com') || event.video_url.includes('youtu.be') ? (
+                    <iframe 
+                      src={event.video_url.replace('watch?v=', 'embed/').replace('youtu.be/', 'youtube.com/embed/')} 
+                      className="w-full h-full"
+                      allowFullScreen
+                      title="Event Video"
+                    />
+                  ) : (
+                    <video src={event.video_url} controls className="w-full h-full object-cover" />
+                  )}
+                </div>
+              </section>
+            )}
+
+            {/* Brands Section */}
+            <section>
+              <h2 className="text-2xl font-bold mb-8 border-l-4 border-orange-600 pl-4">參與品牌</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
+                {brands.map(brand => (
+                  <div key={brand.id} className="group border border-stone-100 rounded-3xl p-6 hover:shadow-lg transition-all bg-white">
+                    <div className="flex items-center gap-4 mb-4">
+                      <img src={brand.logo_url} className="w-16 h-16 rounded-2xl object-cover bg-stone-50" alt={brand.name} />
+                      <div>
+                        <h3 className="font-bold text-lg">{brand.name}</h3>
+                        <span className="text-[10px] uppercase tracking-wider text-orange-600 font-bold">{brand.category}</span>
+                      </div>
+                    </div>
+                    <p className="text-stone-500 text-sm mb-6 line-clamp-2">{brand.description}</p>
+                    <div className="bg-orange-50 p-4 rounded-2xl text-sm">
+                      <p className="text-orange-800 font-bold mb-1">專屬優惠</p>
+                      <p className="text-orange-600">{brand.promotion_info}</p>
                     </div>
                   </div>
-                  <p className="text-stone-600 text-sm mb-4">{brand.description}</p>
-                  <div className="bg-stone-50 p-3 rounded-xl text-xs font-medium text-stone-500">
-                    <span className="text-orange-600">優惠：</span> {brand.promotion_info}
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            </section>
           </div>
 
-          <div>
-            <h2 className="text-2xl font-bold mb-8 border-l-4 border-orange-600 pl-4">贊助夥伴</h2>
-            <div className="space-y-6">
-              {partners.map(partner => (
-                <div key={partner.id} className="flex items-center gap-4 p-4 bg-stone-50 rounded-2xl">
-                  <img src={partner.logo_url} className="w-12 h-12 rounded-lg object-cover" alt={partner.name} />
-                  <div>
-                    <h4 className="font-bold text-sm">{partner.name}</h4>
-                    <p className="text-xs text-stone-500">{partner.type}</p>
+          {/* Sidebar */}
+          <div className="space-y-12">
+            <section>
+              <h2 className="text-2xl font-bold mb-8 border-l-4 border-orange-600 pl-4">贊助夥伴</h2>
+              <div className="space-y-4">
+                {partners.map(partner => (
+                  <div key={partner.id} className="flex items-center gap-4 p-4 bg-stone-50 rounded-2xl hover:bg-stone-100 transition-colors">
+                    <img src={partner.logo_url} className="w-12 h-12 rounded-xl object-cover shadow-sm" alt={partner.name} />
+                    <div>
+                      <h4 className="font-bold text-sm text-stone-800">{partner.name}</h4>
+                      <p className="text-[10px] uppercase tracking-widest text-stone-400 font-bold">{partner.type}</p>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            </section>
+
+            <section className="bg-orange-600 rounded-3xl p-8 text-white shadow-xl shadow-orange-200">
+              <h3 className="text-xl font-bold mb-4">立即參與</h3>
+              <p className="text-orange-100 text-sm mb-6">加入食在力量美食祭，探索更多美味驚喜！</p>
+              <Link to="/promotions" className="block w-full bg-white text-orange-600 text-center py-3 rounded-xl font-bold hover:bg-stone-50 transition-colors">
+                領取優惠券
+              </Link>
+            </section>
           </div>
         </div>
       </div>
@@ -454,23 +643,6 @@ const Login = () => {
       alert(error.message);
     } else {
       navigate('/admin');
-    }
-    setLoading(false);
-  };
-
-  const handleForgotPassword = async () => {
-    if (!email) {
-      alert('請先輸入電子郵件');
-      return;
-    }
-    setLoading(true);
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/login`,
-    });
-    if (error) {
-      alert(error.message);
-    } else {
-      alert('重設密碼郵件已發送，請檢查您的信箱');
     }
     setLoading(false);
   };
@@ -498,13 +670,6 @@ const Login = () => {
           <div>
             <div className="flex justify-between mb-2">
               <label className="block text-sm font-medium text-stone-700">密碼</label>
-              <button 
-                type="button"
-                onClick={handleForgotPassword}
-                className="text-xs text-stone-400 hover:text-orange-600 transition-colors"
-              >
-                忘記密碼？
-              </button>
             </div>
             <input 
               type="password" 
@@ -759,7 +924,11 @@ const AdminDashboard = () => {
   const [events, setEvents] = useState<Event[]>([]);
   const [kolReviews, setKolReviews] = useState<KOLReview[]>([]);
   const [promotions, setPromotions] = useState<Promotion[]>([]);
+  const [showEventModal, setShowEventModal] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<Event | null>(null);
   const navigate = useNavigate();
+
+  const [eventContent, setEventContent] = useState('');
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -769,6 +938,14 @@ const AdminDashboard = () => {
     checkAuth();
     fetchData();
   }, [activeTab]);
+
+  useEffect(() => {
+    if (editingEvent) {
+      setEventContent(editingEvent.content || '');
+    } else {
+      setEventContent('');
+    }
+  }, [editingEvent]);
 
   const fetchData = async () => {
     if (activeTab === 'events') {
@@ -780,6 +957,40 @@ const AdminDashboard = () => {
     } else if (activeTab === 'promotions') {
       const { data } = await supabase.from('promotions').select('*, brand:brands(name)').order('created_at', { ascending: false });
       if (data) setPromotions(data as any);
+    }
+  };
+
+  const handleSaveEvent = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const eventData = {
+      title: formData.get('title') as string,
+      description: formData.get('description') as string,
+      long_description: formData.get('long_description') as string,
+      content: eventContent,
+      start_date: formData.get('start_date') as string,
+      end_date: formData.get('end_date') as string,
+      type: formData.get('type') as 'current' | 'past',
+      image_url: formData.get('image_url') as string,
+      video_url: formData.get('video_url') as string,
+    };
+
+    if (editingEvent) {
+      await supabase.from('events').update(eventData).eq('id', editingEvent.id);
+    } else {
+      await supabase.from('events').insert([eventData]);
+    }
+    
+    setShowEventModal(false);
+    setEditingEvent(null);
+    setEventContent('');
+    fetchData();
+  };
+
+  const handleDeleteEvent = async (id: string) => {
+    if (window.confirm('確定要刪除此活動嗎？')) {
+      await supabase.from('events').delete().eq('id', id);
+      fetchData();
     }
   };
 
@@ -840,7 +1051,10 @@ const AdminDashboard = () => {
               <>
                 <div className="flex justify-between items-center mb-6">
                   <h2 className="text-xl font-bold">活動列表</h2>
-                  <button className="bg-stone-900 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2">
+                  <button 
+                    onClick={() => { setEditingEvent(null); setShowEventModal(true); }}
+                    className="bg-stone-900 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2"
+                  >
                     <Plus className="w-4 h-4" /> 新增活動
                   </button>
                 </div>
@@ -870,8 +1084,18 @@ const AdminDashboard = () => {
                           <td className="py-4 text-sm text-stone-500">{event.start_date}</td>
                           <td className="py-4 text-right">
                             <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <button className="p-2 text-stone-400 hover:text-orange-600"><Edit className="w-4 h-4" /></button>
-                              <button className="p-2 text-stone-400 hover:text-red-600"><Trash2 className="w-4 h-4" /></button>
+                              <button 
+                                onClick={() => { setEditingEvent(event); setShowEventModal(true); }}
+                                className="p-2 text-stone-400 hover:text-orange-600"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </button>
+                              <button 
+                                onClick={() => handleDeleteEvent(event.id)}
+                                className="p-2 text-stone-400 hover:text-red-600"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
                             </div>
                           </td>
                         </tr>
@@ -987,6 +1211,81 @@ const AdminDashboard = () => {
           </div>
         </div>
       </div>
+
+      {/* Event Modal */}
+      <AnimatePresence>
+        {showEventModal && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowEventModal(false)}
+              className="absolute inset-0 bg-stone-900/60 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden"
+            >
+              <div className="p-8 border-b border-stone-100 flex justify-between items-center">
+                <h3 className="text-xl font-bold">{editingEvent ? '編輯活動' : '新增活動'}</h3>
+                <button onClick={() => setShowEventModal(false)} className="text-stone-400 hover:text-stone-600">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+              <form onSubmit={handleSaveEvent} className="p-8 space-y-6 max-h-[70vh] overflow-y-auto">
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="col-span-2">
+                    <label className="block text-sm font-medium text-stone-700 mb-2">活動標題</label>
+                    <input name="title" defaultValue={editingEvent?.title} className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" required />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-sm font-medium text-stone-700 mb-2">簡短描述</label>
+                    <textarea name="description" defaultValue={editingEvent?.description} className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600 h-20" required />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-sm font-medium text-stone-700 mb-2">活動部落格內容 (區塊編輯器)</label>
+                    <BlockEditor 
+                      key={editingEvent?.id || 'new'} 
+                      initialContent={editingEvent?.content} 
+                      onChange={setEventContent} 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-2">開始日期</label>
+                    <input type="date" name="start_date" defaultValue={editingEvent?.start_date} className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" required />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-2">結束日期</label>
+                    <input type="date" name="end_date" defaultValue={editingEvent?.end_date} className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" required />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-2">活動狀態</label>
+                    <select name="type" defaultValue={editingEvent?.type || 'current'} className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600">
+                      <option value="current">進行中</option>
+                      <option value="past">已結束</option>
+                    </select>
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-sm font-medium text-stone-700 mb-2">封面圖片網址</label>
+                    <input name="image_url" defaultValue={editingEvent?.image_url} className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" required />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-sm font-medium text-stone-700 mb-2">影片網址 (YouTube 或 MP4)</label>
+                    <input name="video_url" defaultValue={editingEvent?.video_url} className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" placeholder="https://www.youtube.com/watch?v=..." />
+                  </div>
+                </div>
+                <div className="pt-6 flex gap-4">
+                  <button type="button" onClick={() => setShowEventModal(false)} className="flex-1 px-6 py-3 rounded-xl border border-stone-200 font-bold hover:bg-stone-50 transition-colors">取消</button>
+                  <button type="submit" className="flex-1 px-6 py-3 rounded-xl bg-orange-600 text-white font-bold hover:bg-orange-500 transition-colors">儲存活動</button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
@@ -1000,6 +1299,7 @@ export default function App() {
         <Navbar />
         <Routes>
           <Route path="/" element={<Home />} />
+          <Route path="/events" element={<EventsPage />} />
           <Route path="/event/:id" element={<EventDetail />} />
           <Route path="/promotions" element={<PromotionsPage />} />
           <Route path="/reviews" element={<KOLReviewsPage />} />

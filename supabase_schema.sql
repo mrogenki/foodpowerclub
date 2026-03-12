@@ -6,10 +6,13 @@
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     title TEXT NOT NULL,
     description TEXT,
+    long_description TEXT,
+    content TEXT,
     start_date DATE,
     end_date DATE,
     type TEXT CHECK (type IN ('current', 'past')),
     image_url TEXT,
+    video_url TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
   );
 

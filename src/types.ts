@@ -2,10 +2,13 @@ export interface Event {
   id: string;
   title: string;
   description: string;
+  long_description?: string;
+  content: string;
   start_date: string;
   end_date: string;
   type: 'current' | 'past';
   image_url: string;
+  video_url?: string;
   created_at: string;
 }
 
