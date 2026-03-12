@@ -61,3 +61,20 @@ export interface KOLReview {
   video_embed_url?: string;
   created_at: string;
 }
+
+export interface Promotion {
+  id: string;
+  brand_id: string;
+  title: string;
+  description: string;
+  discount_code?: string;
+  start_date: string;
+  end_date: string;
+  image_url: string;
+  is_active: boolean;
+  created_at: string;
+  brand?: {
+    name: string;
+    logo_url: string;
+  };
+}

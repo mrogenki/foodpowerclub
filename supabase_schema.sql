@@ -71,6 +71,20 @@
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
   );
 
+  -- Promotions Table
+  CREATE TABLE promotions (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    brand_id UUID REFERENCES brands(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    description TEXT,
+    discount_code TEXT,
+    start_date DATE,
+    end_date DATE,
+    image_url TEXT,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  );
+
   -- Enable Row Level Security (RLS)
   ALTER TABLE events ENABLE ROW LEVEL SECURITY;
   ALTER TABLE brands ENABLE ROW LEVEL SECURITY;
@@ -78,6 +92,7 @@
   ALTER TABLE locations ENABLE ROW LEVEL SECURITY;
   ALTER TABLE reviews ENABLE ROW LEVEL SECURITY;
   ALTER TABLE kol_reviews ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE promotions ENABLE ROW LEVEL SECURITY;
 
   -- Create policies for public read access
   CREATE POLICY "Public read access for events" ON events FOR SELECT USING (true);
@@ -86,6 +101,7 @@
   CREATE POLICY "Public read access for locations" ON locations FOR SELECT USING (true);
   CREATE POLICY "Public read access for reviews" ON reviews FOR SELECT USING (true);
   CREATE POLICY "Public read access for kol_reviews" ON kol_reviews FOR SELECT USING (true);
+  CREATE POLICY "Public read access for promotions" ON promotions FOR SELECT USING (true);
 
   -- Create policies for authenticated write access (Admin)
   CREATE POLICY "Admin write access for events" ON events FOR ALL USING (auth.role() = 'authenticated');
@@ -94,4 +110,5 @@
   CREATE POLICY "Admin write access for locations" ON locations FOR ALL USING (auth.role() = 'authenticated');
   CREATE POLICY "Admin write access for reviews" ON reviews FOR ALL USING (auth.role() = 'authenticated');
   CREATE POLICY "Admin write access for kol_reviews" ON kol_reviews FOR ALL USING (auth.role() = 'authenticated');
+  CREATE POLICY "Admin write access for promotions" ON promotions FOR ALL USING (auth.role() = 'authenticated');
 */
