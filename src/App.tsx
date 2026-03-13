@@ -588,7 +588,7 @@ const EventsPage = () => {
 
   useEffect(() => {
     const fetchEvents = async () => {
-      const { data } = await supabase.from('events').select('*').order('start_date', { ascending: false });
+      const { data } = await supabase.from('events').select('*').order('start_date', { ascending: true });
       if (data) setEvents(data);
     };
     fetchEvents();
