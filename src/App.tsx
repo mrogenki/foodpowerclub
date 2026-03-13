@@ -276,18 +276,19 @@ const Navbar = () => {
 // --- Pages ---
 
 const Home = () => {
-  const [currentEvent, setCurrentEvent] = useState<Event | null>(null);
+  const [currentEvents, setCurrentEvents] = useState<Event[]>([]);
   const [pastEvents, setPastEvents] = useState<Event[]>([]);
   const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [reviews, setReviews] = useState<KOLReview[]>([]);
   const [partners, setPartners] = useState<Partner[]>([]);
+  const [heroIndex, setHeroIndex] = useState(0);
 
   useEffect(() => {
     const fetchHomeData = async () => {
-      // Fetch Events
-      const { data: eventsData } = await supabase.from('events').select('*').order('start_date', { ascending: false });
+      // Fetch Events - Order by start_date ascending to get the ones starting earlier first
+      const { data: eventsData } = await supabase.from('events').select('*').order('start_date', { ascending: true });
       if (eventsData) {
-        setCurrentEvent(eventsData.find(e => e.type === 'current') || eventsData[0]);
+        setCurrentEvents(eventsData.filter(e => e.type === 'current'));
         setPastEvents(eventsData.filter(e => e.type === 'past'));
       }
 
@@ -311,41 +312,87 @@ const Home = () => {
     fetchHomeData();
   }, []);
 
+  // Hero Carousel Timer
+  useEffect(() => {
+    if (currentEvents.length <= 1) return;
+    
+    const timer = setInterval(() => {
+      setHeroIndex((prev) => (prev + 1) % currentEvents.length);
+    }, 5000);
+    
+    return () => clearInterval(timer);
+  }, [currentEvents.length]);
+
+  const activeHeroEvent = currentEvents[heroIndex] || currentEvents[0];
+
   return (
     <div className="pt-16">
       {/* Hero Section */}
       <section className="relative h-[80vh] flex items-center justify-center overflow-hidden bg-stone-900">
-        <img 
-          src={currentEvent?.image_url || "https://images.unsplash.com/photo-1529692236671-f1f6cf9683ba?q=80&w=2070&auto=format&fit=crop"} 
-          className="absolute inset-0 w-full h-full object-cover opacity-60"
-          alt="Hero"
-          referrerPolicy="no-referrer"
-        />
-        <div className="relative z-10 text-center px-4">
+        <AnimatePresence mode="wait">
           <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8 }}
+            key={activeHeroEvent?.id || 'default'}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 1 }}
+            className="absolute inset-0"
           >
-            <h1 className="text-5xl md:text-7xl font-bold text-white mb-6 tracking-tight">
-              {currentEvent?.title || "食在力量美食祭"}
-            </h1>
-            <p className="text-xl text-stone-200 max-w-2xl mx-auto mb-8 font-light">
-              {currentEvent?.description || "探索城市中最具力量的美食，連結品牌與味蕾的盛宴。"}
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link to={`/event/${currentEvent?.id}`} className="bg-orange-600 text-white px-8 py-4 rounded-full font-bold hover:bg-orange-500 transition-all transform hover:scale-105">
-                立即探索
-              </Link>
-              <Link to="/promotions" className="bg-white text-orange-600 px-8 py-4 rounded-full font-bold hover:bg-stone-50 transition-all transform hover:scale-105 shadow-xl">
-                優惠資訊
-              </Link>
-              <Link to="/map" className="bg-white/10 backdrop-blur-md text-white border border-white/20 px-8 py-4 rounded-full font-bold hover:bg-white/20 transition-all">
-                查看地圖
-              </Link>
-            </div>
+            <img 
+              src={activeHeroEvent?.image_url || "https://images.unsplash.com/photo-1529692236671-f1f6cf9683ba?q=80&w=2070&auto=format&fit=crop"} 
+              className="absolute inset-0 w-full h-full object-cover opacity-60"
+              alt="Hero"
+              referrerPolicy="no-referrer"
+            />
           </motion.div>
+        </AnimatePresence>
+
+        <div className="relative z-10 text-center px-4 w-full max-w-4xl">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={activeHeroEvent?.id || 'default-text'}
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -30 }}
+              transition={{ duration: 0.8 }}
+            >
+              <h1 className="text-5xl md:text-7xl font-bold text-white mb-6 tracking-tight">
+                {activeHeroEvent?.title || "食在力量美食祭"}
+              </h1>
+              <p className="text-xl text-stone-200 max-w-2xl mx-auto mb-8 font-light">
+                {activeHeroEvent?.description || "探索城市中最具力量的美食，連結品牌與味蕾的盛宴。"}
+              </p>
+              <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                <Link to={`/event/${activeHeroEvent?.id}`} className="bg-orange-600 text-white px-8 py-4 rounded-full font-bold hover:bg-orange-500 transition-all transform hover:scale-105">
+                  立即探索
+                </Link>
+                <Link to="/promotions" className="bg-white text-orange-600 px-8 py-4 rounded-full font-bold hover:bg-stone-50 transition-all transform hover:scale-105 shadow-xl">
+                  優惠資訊
+                </Link>
+                <Link to="/map" className="bg-white/10 backdrop-blur-md text-white border border-white/20 px-8 py-4 rounded-full font-bold hover:bg-white/20 transition-all">
+                  查看地圖
+                </Link>
+              </div>
+            </motion.div>
+          </AnimatePresence>
+          
         </div>
+
+        {/* Carousel Indicators */}
+        {currentEvents.length > 1 && (
+          <div className="absolute bottom-12 left-1/2 transform -translate-x-1/2 flex gap-2 z-20">
+            {currentEvents.map((_, idx) => (
+              <button
+                key={idx}
+                onClick={() => setHeroIndex(idx)}
+                className={cn(
+                  "w-2 h-2 rounded-full transition-all cursor-pointer",
+                  idx === heroIndex ? "bg-orange-600 w-8" : "bg-white/40 hover:bg-white/60"
+                )}
+              />
+            ))}
+          </div>
+        )}
       </section>
 
       {/* 1. 近期活動 (Recent Events) */}
@@ -359,28 +406,29 @@ const Home = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {/* Current Event if exists */}
-            {currentEvent && (
+            {/* Current Events */}
+            {currentEvents.map((event) => (
               <motion.div 
+                key={event.id}
                 whileHover={{ y: -10 }}
                 className="bg-white rounded-3xl overflow-hidden shadow-xl border-2 border-orange-100 relative"
               >
                 <div className="absolute top-4 right-4 bg-orange-600 text-white px-3 py-1 rounded-full text-xs font-bold z-10">
                   進行中
                 </div>
-                <img src={currentEvent.image_url} className="w-full h-56 object-cover" alt={currentEvent.title} />
+                <img src={event.image_url} className="w-full h-56 object-cover" alt={event.title} />
                 <div className="p-8">
-                  <h3 className="text-2xl font-bold mb-3">{currentEvent.title}</h3>
-                  <p className="text-stone-500 text-sm mb-6 line-clamp-2">{currentEvent.description}</p>
-                  <Link to={`/event/${currentEvent.id}`} className="inline-flex items-center gap-2 text-orange-600 font-bold">
+                  <h3 className="text-2xl font-bold mb-3">{event.title}</h3>
+                  <p className="text-stone-500 text-sm mb-6 line-clamp-2">{event.description}</p>
+                  <Link to={`/event/${event.id}`} className="inline-flex items-center gap-2 text-orange-600 font-bold">
                     立即參與 <ChevronRight className="w-4 h-4" />
                   </Link>
                 </div>
               </motion.div>
-            )}
+            ))}
             
             {/* Past Events */}
-            {pastEvents.slice(0, 2).map((event) => (
+            {pastEvents.slice(0, Math.max(0, 3 - currentEvents.length)).map((event) => (
               <motion.div 
                 key={event.id}
                 whileHover={{ y: -10 }}
