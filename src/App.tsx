@@ -1056,14 +1056,33 @@ const PromotionsPage = () => {
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState<'events' | 'brands' | 'partners' | 'locations' | 'kol_reviews' | 'promotions'>('events');
   const [events, setEvents] = useState<Event[]>([]);
+  const [brands, setBrands] = useState<Brand[]>([]);
+  const [partners, setPartners] = useState<Partner[]>([]);
   const [kolReviews, setKolReviews] = useState<KOLReview[]>([]);
   const [promotions, setPromotions] = useState<Promotion[]>([]);
+  
   const [showEventModal, setShowEventModal] = useState(false);
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
+  
+  const [showBrandModal, setShowBrandModal] = useState(false);
+  const [editingBrand, setEditingBrand] = useState<Brand | null>(null);
+  
+  const [showPartnerModal, setShowPartnerModal] = useState(false);
+  const [editingPartner, setEditingPartner] = useState<Partner | null>(null);
+  
+  const [showKOLModal, setShowKOLModal] = useState(false);
+  const [editingKOL, setEditingKOL] = useState<KOLReview | null>(null);
+  
+  const [showPromotionModal, setShowPromotionModal] = useState(false);
+  const [editingPromotion, setEditingPromotion] = useState<Promotion | null>(null);
+
   const [imageUrl, setImageUrl] = useState('');
+  const [avatarUrl, setAvatarUrl] = useState('');
+  const [logoUrl, setLogoUrl] = useState('');
+  
   const navigate = useNavigate();
 
-  const [eventContent, setEventContent] = useState('');
+  const [editorContent, setEditorContent] = useState('');
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -1076,18 +1095,38 @@ const AdminDashboard = () => {
 
   useEffect(() => {
     if (editingEvent) {
-      setEventContent(editingEvent.content || '');
+      setEditorContent(editingEvent.content || '');
       setImageUrl(editingEvent.image_url || '');
+    } else if (editingBrand) {
+      setEditorContent((editingBrand as any).content || '');
+      setLogoUrl(editingBrand.logo_url || '');
+    } else if (editingPartner) {
+      setEditorContent(editingPartner.content || '');
+      setLogoUrl(editingPartner.logo_url || '');
+    } else if (editingKOL) {
+      setEditorContent(editingKOL.content || '');
+      setImageUrl(editingKOL.media_url || '');
+      setAvatarUrl(editingKOL.kol_avatar_url || '');
+    } else if (editingPromotion) {
+      setImageUrl(editingPromotion.image_url || '');
     } else {
-      setEventContent('');
+      setEditorContent('');
       setImageUrl('');
+      setAvatarUrl('');
+      setLogoUrl('');
     }
-  }, [editingEvent]);
+  }, [editingEvent, editingBrand, editingPartner, editingKOL, editingPromotion]);
 
   const fetchData = async () => {
     if (activeTab === 'events') {
       const { data } = await supabase.from('events').select('*').order('created_at', { ascending: false });
       if (data) setEvents(data);
+    } else if (activeTab === 'brands') {
+      const { data } = await supabase.from('brands').select('*').order('created_at', { ascending: false });
+      if (data) setBrands(data as any);
+    } else if (activeTab === 'partners') {
+      const { data } = await supabase.from('partners').select('*').order('created_at', { ascending: false });
+      if (data) setPartners(data as any);
     } else if (activeTab === 'kol_reviews') {
       const { data } = await supabase.from('kol_reviews').select('*').order('created_at', { ascending: false });
       if (data) setKolReviews(data);
@@ -1104,7 +1143,7 @@ const AdminDashboard = () => {
       title: formData.get('title') as string,
       description: formData.get('description') as string,
       long_description: formData.get('long_description') as string,
-      content: eventContent,
+      content: editorContent,
       start_date: formData.get('start_date') as string,
       end_date: formData.get('end_date') as string,
       type: formData.get('type') as 'current' | 'past',
@@ -1128,7 +1167,135 @@ const AdminDashboard = () => {
     
     setShowEventModal(false);
     setEditingEvent(null);
-    setEventContent('');
+    setEditorContent('');
+    setImageUrl('');
+    fetchData();
+  };
+
+  const handleSaveBrand = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const brandData = {
+      name: formData.get('name') as string,
+      logo_url: logoUrl,
+      content: editorContent,
+    };
+
+    let error;
+    if (editingBrand) {
+      const result = await supabase.from('brands').update(brandData).eq('id', editingBrand.id);
+      error = result.error;
+    } else {
+      const result = await supabase.from('brands').insert([brandData]);
+      error = result.error;
+    }
+    
+    if (error) {
+      alert(`儲存失敗: ${error.message}`);
+      return;
+    }
+    
+    setShowBrandModal(false);
+    setEditingBrand(null);
+    setEditorContent('');
+    setLogoUrl('');
+    fetchData();
+  };
+
+  const handleSavePartner = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const partnerData = {
+      name: formData.get('name') as string,
+      type: formData.get('type') as string,
+      logo_url: logoUrl,
+      content: editorContent,
+    };
+
+    let error;
+    if (editingPartner) {
+      const result = await supabase.from('partners').update(partnerData).eq('id', editingPartner.id);
+      error = result.error;
+    } else {
+      const result = await supabase.from('partners').insert([partnerData]);
+      error = result.error;
+    }
+    
+    if (error) {
+      alert(`儲存失敗: ${error.message}`);
+      return;
+    }
+    
+    setShowPartnerModal(false);
+    setEditingPartner(null);
+    setEditorContent('');
+    setLogoUrl('');
+    fetchData();
+  };
+
+  const handleSaveKOL = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const kolData = {
+      title: formData.get('title') as string,
+      kol_name: formData.get('kol_name') as string,
+      kol_avatar_url: avatarUrl,
+      media_type: formData.get('media_type') as string,
+      media_url: imageUrl,
+      content: editorContent,
+    };
+
+    let error;
+    if (editingKOL) {
+      const result = await supabase.from('kol_reviews').update(kolData).eq('id', editingKOL.id);
+      error = result.error;
+    } else {
+      const result = await supabase.from('kol_reviews').insert([kolData]);
+      error = result.error;
+    }
+    
+    if (error) {
+      alert(`儲存失敗: ${error.message}`);
+      return;
+    }
+    
+    setShowKOLModal(false);
+    setEditingKOL(null);
+    setEditorContent('');
+    setImageUrl('');
+    setAvatarUrl('');
+    fetchData();
+  };
+
+  const handleSavePromotion = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const promoData = {
+      title: formData.get('title') as string,
+      brand_id: formData.get('brand_id') as string,
+      description: formData.get('description') as string,
+      discount_code: formData.get('discount_code') as string,
+      end_date: formData.get('end_date') as string,
+      image_url: imageUrl,
+      is_active: formData.get('is_active') === 'true',
+    };
+
+    let error;
+    if (editingPromotion) {
+      const result = await supabase.from('promotions').update(promoData).eq('id', editingPromotion.id);
+      error = result.error;
+    } else {
+      const result = await supabase.from('promotions').insert([promoData]);
+      error = result.error;
+    }
+    
+    if (error) {
+      alert(`儲存失敗: ${error.message}`);
+      return;
+    }
+    
+    setShowPromotionModal(false);
+    setEditingPromotion(null);
     setImageUrl('');
     fetchData();
   };
@@ -1141,6 +1308,38 @@ const AdminDashboard = () => {
       } else {
         fetchData();
       }
+    }
+  };
+
+  const handleDeleteBrand = async (id: string) => {
+    if (window.confirm('確定要刪除此品牌嗎？')) {
+      const { error } = await supabase.from('brands').delete().eq('id', id);
+      if (error) alert(`刪除失敗: ${error.message}`);
+      else fetchData();
+    }
+  };
+
+  const handleDeletePartner = async (id: string) => {
+    if (window.confirm('確定要刪除此贊助夥伴嗎？')) {
+      const { error } = await supabase.from('partners').delete().eq('id', id);
+      if (error) alert(`刪除失敗: ${error.message}`);
+      else fetchData();
+    }
+  };
+
+  const handleDeleteKOL = async (id: string) => {
+    if (window.confirm('確定要刪除此開箱分享嗎？')) {
+      const { error } = await supabase.from('kol_reviews').delete().eq('id', id);
+      if (error) alert(`刪除失敗: ${error.message}`);
+      else fetchData();
+    }
+  };
+
+  const handleDeletePromotion = async (id: string) => {
+    if (window.confirm('確定要刪除此優惠資訊嗎？')) {
+      const { error } = await supabase.from('promotions').delete().eq('id', id);
+      if (error) alert(`刪除失敗: ${error.message}`);
+      else fetchData();
     }
   };
 
@@ -1191,8 +1390,24 @@ const AdminDashboard = () => {
             >
               優惠管理
             </button>
-            <button className="w-full text-left px-4 py-3 rounded-xl text-stone-600 hover:bg-stone-200 font-medium">品牌管理</button>
-            <button className="w-full text-left px-4 py-3 rounded-xl text-stone-600 hover:bg-stone-200 font-medium">贊助管理</button>
+            <button 
+              onClick={() => setActiveTab('brands')}
+              className={cn(
+                "w-full text-left px-4 py-3 rounded-xl font-medium transition-all",
+                activeTab === 'brands' ? "bg-orange-600 text-white shadow-lg" : "text-stone-600 hover:bg-stone-200"
+              )}
+            >
+              品牌管理
+            </button>
+            <button 
+              onClick={() => setActiveTab('partners')}
+              className={cn(
+                "w-full text-left px-4 py-3 rounded-xl font-medium transition-all",
+                activeTab === 'partners' ? "bg-orange-600 text-white shadow-lg" : "text-stone-600 hover:bg-stone-200"
+              )}
+            >
+              贊助管理
+            </button>
             <button className="w-full text-left px-4 py-3 rounded-xl text-stone-600 hover:bg-stone-200 font-medium">地圖管理</button>
           </div>
 
@@ -1260,7 +1475,10 @@ const AdminDashboard = () => {
               <>
                 <div className="flex justify-between items-center mb-6">
                   <h2 className="text-xl font-bold">開箱分享列表</h2>
-                  <button className="bg-stone-900 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2">
+                  <button 
+                    onClick={() => { setEditingKOL(null); setShowKOLModal(true); }}
+                    className="bg-stone-900 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2"
+                  >
                     <Plus className="w-4 h-4" /> 新增開箱
                   </button>
                 </div>
@@ -1291,8 +1509,18 @@ const AdminDashboard = () => {
                           </td>
                           <td className="py-4 text-right">
                             <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <button className="p-2 text-stone-400 hover:text-orange-600"><Edit className="w-4 h-4" /></button>
-                              <button className="p-2 text-stone-400 hover:text-red-600"><Trash2 className="w-4 h-4" /></button>
+                              <button 
+                                onClick={() => { setEditingKOL(review); setShowKOLModal(true); }}
+                                className="p-2 text-stone-400 hover:text-orange-600"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </button>
+                              <button 
+                                onClick={() => handleDeleteKOL(review.id)}
+                                className="p-2 text-stone-400 hover:text-red-600"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
                             </div>
                           </td>
                         </tr>
@@ -1308,11 +1536,128 @@ const AdminDashboard = () => {
               </>
             )}
 
+            {activeTab === 'brands' && (
+              <>
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-xl font-bold">品牌列表</h2>
+                  <button 
+                    onClick={() => { setEditingBrand(null); setShowBrandModal(true); }}
+                    className="bg-stone-900 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2"
+                  >
+                    <Plus className="w-4 h-4" /> 新增品牌
+                  </button>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="border-b border-stone-100 text-stone-400 text-sm">
+                        <th className="pb-4 font-medium">品牌名稱</th>
+                        <th className="pb-4 font-medium text-right">操作</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-stone-50">
+                      {brands.map(brand => (
+                        <tr key={brand.id} className="group">
+                          <td className="py-4 font-medium flex items-center gap-3">
+                            <img src={brand.logo_url} className="w-8 h-8 rounded-full object-cover bg-stone-50" alt="" />
+                            {brand.name}
+                          </td>
+                          <td className="py-4 text-right">
+                            <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button 
+                                onClick={() => { setEditingBrand(brand); setShowBrandModal(true); }}
+                                className="p-2 text-stone-400 hover:text-orange-600"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </button>
+                              <button 
+                                onClick={() => handleDeleteBrand(brand.id)}
+                                className="p-2 text-stone-400 hover:text-red-600"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                      {brands.length === 0 && (
+                        <tr>
+                          <td colSpan={2} className="py-12 text-center text-stone-400">目前尚無品牌資料</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+
+            {activeTab === 'partners' && (
+              <>
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-xl font-bold">贊助夥伴列表</h2>
+                  <button 
+                    onClick={() => { setEditingPartner(null); setShowPartnerModal(true); }}
+                    className="bg-stone-900 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2"
+                  >
+                    <Plus className="w-4 h-4" /> 新增贊助
+                  </button>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="border-b border-stone-100 text-stone-400 text-sm">
+                        <th className="pb-4 font-medium">夥伴名稱</th>
+                        <th className="pb-4 font-medium">類型</th>
+                        <th className="pb-4 font-medium text-right">操作</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-stone-50">
+                      {partners.map(partner => (
+                        <tr key={partner.id} className="group">
+                          <td className="py-4 font-medium flex items-center gap-3">
+                            <img src={partner.logo_url} className="w-8 h-8 rounded-full object-cover bg-stone-50" alt="" />
+                            {partner.name}
+                          </td>
+                          <td className="py-4 text-sm">{partner.type}</td>
+                          <td className="py-4 text-right">
+                            <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button 
+                                onClick={() => { setEditingPartner(partner); setShowPartnerModal(true); }}
+                                className="p-2 text-stone-400 hover:text-orange-600"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </button>
+                              <button 
+                                onClick={() => handleDeletePartner(partner.id)}
+                                className="p-2 text-stone-400 hover:text-red-600"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                      {partners.length === 0 && (
+                        <tr>
+                          <td colSpan={3} className="py-12 text-center text-stone-400">目前尚無贊助資料</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+
             {activeTab === 'promotions' && (
               <>
                 <div className="flex justify-between items-center mb-6">
                   <h2 className="text-xl font-bold">優惠資訊列表</h2>
-                  <button className="bg-stone-900 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2">
+                  <button 
+                    onClick={() => { setEditingPromotion(null); setShowPromotionModal(true); }}
+                    className="bg-stone-900 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2"
+                  >
                     <Plus className="w-4 h-4" /> 新增優惠
                   </button>
                 </div>
@@ -1342,8 +1687,18 @@ const AdminDashboard = () => {
                           </td>
                           <td className="py-4 text-right">
                             <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <button className="p-2 text-stone-400 hover:text-orange-600"><Edit className="w-4 h-4" /></button>
-                              <button className="p-2 text-stone-400 hover:text-red-600"><Trash2 className="w-4 h-4" /></button>
+                              <button 
+                                onClick={() => { setEditingPromotion(promo); setShowPromotionModal(true); }}
+                                className="p-2 text-stone-400 hover:text-orange-600"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </button>
+                              <button 
+                                onClick={() => handleDeletePromotion(promo.id)}
+                                className="p-2 text-stone-400 hover:text-red-600"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
                             </div>
                           </td>
                         </tr>
@@ -1398,9 +1753,9 @@ const AdminDashboard = () => {
                   <div className="col-span-2">
                     <label className="block text-sm font-medium text-stone-700 mb-2">活動部落格內容 (區塊編輯器)</label>
                     <BlockEditor 
-                      key={editingEvent?.id || 'new'} 
+                      key={editingEvent?.id || 'new_event'} 
                       initialContent={editingEvent?.content} 
-                      onChange={setEventContent} 
+                      onChange={setEditorContent} 
                     />
                   </div>
                   <div>
@@ -1433,6 +1788,272 @@ const AdminDashboard = () => {
                 <div className="pt-6 flex gap-4">
                   <button type="button" onClick={() => setShowEventModal(false)} className="flex-1 px-6 py-3 rounded-xl border border-stone-200 font-bold hover:bg-stone-50 transition-colors">取消</button>
                   <button type="submit" className="flex-1 px-6 py-3 rounded-xl bg-orange-600 text-white font-bold hover:bg-orange-500 transition-colors">儲存活動</button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Brand Modal */}
+      <AnimatePresence>
+        {showBrandModal && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowBrandModal(false)}
+              className="absolute inset-0 bg-stone-900/60 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden"
+            >
+              <div className="p-8 border-b border-stone-100 flex justify-between items-center">
+                <h3 className="text-xl font-bold">{editingBrand ? '編輯品牌' : '新增品牌'}</h3>
+                <button onClick={() => setShowBrandModal(false)} className="text-stone-400 hover:text-stone-600">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+              <form onSubmit={handleSaveBrand} className="p-8 space-y-6 max-h-[70vh] overflow-y-auto">
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="col-span-2">
+                    <label className="block text-sm font-medium text-stone-700 mb-2">品牌名稱</label>
+                    <input name="name" defaultValue={editingBrand?.name} className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" required />
+                  </div>
+                  <div className="col-span-2">
+                    <ImageUpload 
+                      label="品牌 Logo" 
+                      value={logoUrl} 
+                      onChange={setLogoUrl} 
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-sm font-medium text-stone-700 mb-2">品牌介紹 (區塊編輯器)</label>
+                    <BlockEditor 
+                      key={editingBrand?.id || 'new_brand'} 
+                      initialContent={(editingBrand as any)?.content} 
+                      onChange={setEditorContent} 
+                    />
+                  </div>
+                </div>
+                <div className="pt-6 flex gap-4">
+                  <button type="button" onClick={() => setShowBrandModal(false)} className="flex-1 px-6 py-3 rounded-xl border border-stone-200 font-bold hover:bg-stone-50 transition-colors">取消</button>
+                  <button type="submit" className="flex-1 px-6 py-3 rounded-xl bg-orange-600 text-white font-bold hover:bg-orange-500 transition-colors">儲存品牌</button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Partner Modal */}
+      <AnimatePresence>
+        {showPartnerModal && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowPartnerModal(false)}
+              className="absolute inset-0 bg-stone-900/60 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden"
+            >
+              <div className="p-8 border-b border-stone-100 flex justify-between items-center">
+                <h3 className="text-xl font-bold">{editingPartner ? '編輯贊助' : '新增贊助'}</h3>
+                <button onClick={() => setShowPartnerModal(false)} className="text-stone-400 hover:text-stone-600">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+              <form onSubmit={handleSavePartner} className="p-8 space-y-6 max-h-[70vh] overflow-y-auto">
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="col-span-2">
+                    <label className="block text-sm font-medium text-stone-700 mb-2">夥伴名稱</label>
+                    <input name="name" defaultValue={editingPartner?.name} className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" required />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-sm font-medium text-stone-700 mb-2">夥伴類型</label>
+                    <select name="type" defaultValue={editingPartner?.type} className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600">
+                      <option value="KOL">KOL</option>
+                      <option value="Restaurant">餐廳</option>
+                      <option value="Sponsor">贊助商</option>
+                    </select>
+                  </div>
+                  <div className="col-span-2">
+                    <ImageUpload 
+                      label="夥伴 Logo / 封面" 
+                      value={logoUrl} 
+                      onChange={setLogoUrl} 
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-sm font-medium text-stone-700 mb-2">夥伴介紹 (區塊編輯器)</label>
+                    <BlockEditor 
+                      key={editingPartner?.id || 'new_partner'} 
+                      initialContent={editingPartner?.content} 
+                      onChange={setEditorContent} 
+                    />
+                  </div>
+                </div>
+                <div className="pt-6 flex gap-4">
+                  <button type="button" onClick={() => setShowPartnerModal(false)} className="flex-1 px-6 py-3 rounded-xl border border-stone-200 font-bold hover:bg-stone-50 transition-colors">取消</button>
+                  <button type="submit" className="flex-1 px-6 py-3 rounded-xl bg-orange-600 text-white font-bold hover:bg-orange-500 transition-colors">儲存贊助</button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* KOL Review Modal */}
+      <AnimatePresence>
+        {showKOLModal && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowKOLModal(false)}
+              className="absolute inset-0 bg-stone-900/60 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden"
+            >
+              <div className="p-8 border-b border-stone-100 flex justify-between items-center">
+                <h3 className="text-xl font-bold">{editingKOL ? '編輯開箱' : '新增開箱'}</h3>
+                <button onClick={() => setShowKOLModal(false)} className="text-stone-400 hover:text-stone-600">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+              <form onSubmit={handleSaveKOL} className="p-8 space-y-6 max-h-[70vh] overflow-y-auto">
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="col-span-2">
+                    <label className="block text-sm font-medium text-stone-700 mb-2">開箱標題</label>
+                    <input name="title" defaultValue={editingKOL?.title} className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" required />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-2">KOL 名稱</label>
+                    <input name="kol_name" defaultValue={editingKOL?.kol_name} className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" required />
+                  </div>
+                  <div>
+                    <ImageUpload 
+                      label="KOL 頭像" 
+                      value={avatarUrl} 
+                      onChange={setAvatarUrl} 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-2">媒體類型</label>
+                    <select name="media_type" defaultValue={editingKOL?.media_type} className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600">
+                      <option value="image">圖文</option>
+                      <option value="video">影片</option>
+                    </select>
+                  </div>
+                  <div>
+                    <ImageUpload 
+                      label="媒體封面 / 圖片" 
+                      value={imageUrl} 
+                      onChange={setImageUrl} 
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-sm font-medium text-stone-700 mb-2">開箱內容 (區塊編輯器)</label>
+                    <BlockEditor 
+                      key={editingKOL?.id || 'new_kol'} 
+                      initialContent={editingKOL?.content} 
+                      onChange={setEditorContent} 
+                    />
+                  </div>
+                </div>
+                <div className="pt-6 flex gap-4">
+                  <button type="button" onClick={() => setShowKOLModal(false)} className="flex-1 px-6 py-3 rounded-xl border border-stone-200 font-bold hover:bg-stone-50 transition-colors">取消</button>
+                  <button type="submit" className="flex-1 px-6 py-3 rounded-xl bg-orange-600 text-white font-bold hover:bg-orange-500 transition-colors">儲存開箱</button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Promotion Modal */}
+      <AnimatePresence>
+        {showPromotionModal && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowPromotionModal(false)}
+              className="absolute inset-0 bg-stone-900/60 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden"
+            >
+              <div className="p-8 border-b border-stone-100 flex justify-between items-center">
+                <h3 className="text-xl font-bold">{editingPromotion ? '編輯優惠' : '新增優惠'}</h3>
+                <button onClick={() => setShowPromotionModal(false)} className="text-stone-400 hover:text-stone-600">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+              <form onSubmit={handleSavePromotion} className="p-8 space-y-6 max-h-[70vh] overflow-y-auto">
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="col-span-2">
+                    <label className="block text-sm font-medium text-stone-700 mb-2">優惠標題</label>
+                    <input name="title" defaultValue={editingPromotion?.title} className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" required />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-sm font-medium text-stone-700 mb-2">所屬品牌</label>
+                    <select name="brand_id" defaultValue={editingPromotion?.brand_id} className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" required>
+                      <option value="">請選擇品牌</option>
+                      {brands.map(brand => (
+                        <option key={brand.id} value={brand.id}>{brand.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-sm font-medium text-stone-700 mb-2">簡短描述</label>
+                    <textarea name="description" defaultValue={editingPromotion?.description} className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600 h-20" required />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-2">折扣碼</label>
+                    <input name="discount_code" defaultValue={editingPromotion?.discount_code} className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-2">截止日期</label>
+                    <input type="date" name="end_date" defaultValue={editingPromotion?.end_date} className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" required />
+                  </div>
+                  <div className="col-span-2">
+                    <ImageUpload 
+                      label="優惠封面圖" 
+                      value={imageUrl} 
+                      onChange={setImageUrl} 
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-sm font-medium text-stone-700 mb-2">狀態</label>
+                    <select name="is_active" defaultValue={editingPromotion?.is_active ? 'true' : 'false'} className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600">
+                      <option value="true">啟用中</option>
+                      <option value="false">已停用</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="pt-6 flex gap-4">
+                  <button type="button" onClick={() => setShowPromotionModal(false)} className="flex-1 px-6 py-3 rounded-xl border border-stone-200 font-bold hover:bg-stone-50 transition-colors">取消</button>
+                  <button type="submit" className="flex-1 px-6 py-3 rounded-xl bg-orange-600 text-white font-bold hover:bg-orange-500 transition-colors">儲存優惠</button>
                 </div>
               </form>
             </motion.div>
