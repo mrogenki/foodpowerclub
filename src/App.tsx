@@ -1112,10 +1112,18 @@ const AdminDashboard = () => {
       video_url: formData.get('video_url') as string,
     };
 
+    let error;
     if (editingEvent) {
-      await supabase.from('events').update(eventData).eq('id', editingEvent.id);
+      const result = await supabase.from('events').update(eventData).eq('id', editingEvent.id);
+      error = result.error;
     } else {
-      await supabase.from('events').insert([eventData]);
+      const result = await supabase.from('events').insert([eventData]);
+      error = result.error;
+    }
+    
+    if (error) {
+      alert(`儲存失敗: ${error.message}`);
+      return;
     }
     
     setShowEventModal(false);
@@ -1127,8 +1135,12 @@ const AdminDashboard = () => {
 
   const handleDeleteEvent = async (id: string) => {
     if (window.confirm('確定要刪除此活動嗎？')) {
-      await supabase.from('events').delete().eq('id', id);
-      fetchData();
+      const { error } = await supabase.from('events').delete().eq('id', id);
+      if (error) {
+        alert(`刪除失敗: ${error.message}`);
+      } else {
+        fetchData();
+      }
     }
   };
 
