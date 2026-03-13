@@ -899,7 +899,9 @@ const PartnersPage = () => {
               <img src={partner.logo_url} className="w-20 h-20 rounded-2xl object-cover mb-6 bg-stone-50" alt={partner.name} />
               <h3 className="text-xl font-bold mb-2">{partner.name}</h3>
               <p className="text-orange-600 text-sm font-medium mb-4">{partner.type}</p>
-              <p className="text-stone-500 text-sm leading-relaxed">{partner.content}</p>
+              <div className="text-stone-500 text-sm leading-relaxed">
+                <BlockRenderer content={partner.content} />
+              </div>
             </div>
           )) : (
             <div className="col-span-3 text-center py-20 text-stone-400">
@@ -959,7 +961,9 @@ const KOLReviewsPage = () => {
                   <span className="font-bold text-stone-800">{review.kol_name}</span>
                 </div>
                 <h3 className="text-xl font-bold mb-2 group-hover:text-orange-600 transition-colors">{review.title}</h3>
-                <p className="text-stone-500 text-sm line-clamp-3 mb-4">{review.content}</p>
+                <div className="text-stone-500 text-sm line-clamp-3 mb-4">
+                  <BlockRenderer content={review.content} />
+                </div>
                 <div className="flex items-center justify-between text-xs text-stone-400">
                   <span className="flex items-center gap-1">
                     {review.media_type === 'video' ? <Play className="w-3 h-3" /> : <ImageIcon className="w-3 h-3" />}
