@@ -1056,6 +1056,7 @@ const PromotionsPage = () => {
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState<'events' | 'brands' | 'partners' | 'locations' | 'kol_reviews' | 'promotions'>('events');
   const [events, setEvents] = useState<Event[]>([]);
+  const [allEvents, setAllEvents] = useState<Event[]>([]);
   const [brands, setBrands] = useState<Brand[]>([]);
   const [partners, setPartners] = useState<Partner[]>([]);
   const [kolReviews, setKolReviews] = useState<KOLReview[]>([]);
@@ -1091,7 +1092,13 @@ const AdminDashboard = () => {
     };
     checkAuth();
     fetchData();
+    fetchAllEvents();
   }, [activeTab]);
+
+  const fetchAllEvents = async () => {
+    const { data } = await supabase.from('events').select('id, title').order('created_at', { ascending: false });
+    if (data) setAllEvents(data as any);
+  };
 
   useEffect(() => {
     if (editingEvent) {
@@ -1177,6 +1184,10 @@ const AdminDashboard = () => {
     const formData = new FormData(e.currentTarget);
     const brandData = {
       name: formData.get('name') as string,
+      event_id: formData.get('event_id') as string,
+      category: formData.get('category') as string,
+      description: formData.get('description') as string,
+      promotion_info: formData.get('promotion_info') as string,
       logo_url: logoUrl,
       content: editorContent,
     };
@@ -1207,6 +1218,7 @@ const AdminDashboard = () => {
     const formData = new FormData(e.currentTarget);
     const partnerData = {
       name: formData.get('name') as string,
+      event_id: formData.get('event_id') as string,
       type: formData.get('type') as string,
       logo_url: logoUrl,
       content: editorContent,
@@ -1238,6 +1250,7 @@ const AdminDashboard = () => {
     const formData = new FormData(e.currentTarget);
     const kolData = {
       title: formData.get('title') as string,
+      event_id: formData.get('event_id') as string,
       kol_name: formData.get('kol_name') as string,
       kol_avatar_url: avatarUrl,
       media_type: formData.get('media_type') as string,
@@ -1821,8 +1834,29 @@ const AdminDashboard = () => {
               <form onSubmit={handleSaveBrand} className="p-8 space-y-6 max-h-[70vh] overflow-y-auto">
                 <div className="grid grid-cols-2 gap-6">
                   <div className="col-span-2">
+                    <label className="block text-sm font-medium text-stone-700 mb-2">所屬活動</label>
+                    <select name="event_id" defaultValue={editingBrand?.event_id} className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" required>
+                      <option value="">請選擇活動</option>
+                      {allEvents.map(event => (
+                        <option key={event.id} value={event.id}>{event.title}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="col-span-2">
                     <label className="block text-sm font-medium text-stone-700 mb-2">品牌名稱</label>
                     <input name="name" defaultValue={editingBrand?.name} className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" required />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-sm font-medium text-stone-700 mb-2">品牌類別 (例如: 燒烤、火鍋)</label>
+                    <input name="category" defaultValue={editingBrand?.category} className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" required />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-sm font-medium text-stone-700 mb-2">簡短描述</label>
+                    <textarea name="description" defaultValue={editingBrand?.description} className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600 h-20" required />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-sm font-medium text-stone-700 mb-2">優惠資訊</label>
+                    <input name="promotion_info" defaultValue={editingBrand?.promotion_info} className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" placeholder="例如: 憑券享 9 折優惠" />
                   </div>
                   <div className="col-span-2">
                     <ImageUpload 
@@ -1875,6 +1909,15 @@ const AdminDashboard = () => {
               </div>
               <form onSubmit={handleSavePartner} className="p-8 space-y-6 max-h-[70vh] overflow-y-auto">
                 <div className="grid grid-cols-2 gap-6">
+                  <div className="col-span-2">
+                    <label className="block text-sm font-medium text-stone-700 mb-2">所屬活動</label>
+                    <select name="event_id" defaultValue={editingPartner?.event_id} className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" required>
+                      <option value="">請選擇活動</option>
+                      {allEvents.map(event => (
+                        <option key={event.id} value={event.id}>{event.title}</option>
+                      ))}
+                    </select>
+                  </div>
                   <div className="col-span-2">
                     <label className="block text-sm font-medium text-stone-700 mb-2">夥伴名稱</label>
                     <input name="name" defaultValue={editingPartner?.name} className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" required />
@@ -1938,6 +1981,15 @@ const AdminDashboard = () => {
               </div>
               <form onSubmit={handleSaveKOL} className="p-8 space-y-6 max-h-[70vh] overflow-y-auto">
                 <div className="grid grid-cols-2 gap-6">
+                  <div className="col-span-2">
+                    <label className="block text-sm font-medium text-stone-700 mb-2">所屬活動</label>
+                    <select name="event_id" defaultValue={editingKOL?.event_id} className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" required>
+                      <option value="">請選擇活動</option>
+                      {allEvents.map(event => (
+                        <option key={event.id} value={event.id}>{event.title}</option>
+                      ))}
+                    </select>
+                  </div>
                   <div className="col-span-2">
                     <label className="block text-sm font-medium text-stone-700 mb-2">開箱標題</label>
                     <input name="title" defaultValue={editingKOL?.title} className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" required />
