@@ -2520,8 +2520,34 @@ const AdminDashboard = () => {
 // --- Main App ---
 
 export default function App() {
+  const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+
+  if (!apiKey) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-stone-50 p-4">
+        <div className="max-w-md w-full bg-white rounded-3xl p-8 shadow-xl border border-stone-200 text-center">
+          <div className="w-16 h-16 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center mx-auto mb-6">
+            <Info className="w-8 h-8" />
+          </div>
+          <h2 className="text-2xl font-bold text-stone-900 mb-4">尚未設定 Google 地圖 API</h2>
+          <p className="text-stone-600 mb-8 leading-relaxed">
+            請在 AI Studio 的 <b>Settings</b> 中新增環境變數 <code>VITE_GOOGLE_MAPS_API_KEY</code>，並確保該金鑰所屬的專案已啟動計費功能。
+          </p>
+          <a 
+            href="https://console.cloud.google.com/google/maps-apis/credentials" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="inline-block w-full py-3 bg-stone-900 text-white rounded-xl font-bold hover:bg-stone-800 transition-colors"
+          >
+            前往 Google Cloud 取得金鑰
+          </a>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <APIProvider apiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY || ''}>
+    <APIProvider apiKey={apiKey}>
       <Router>
         <div className="min-h-screen bg-white font-sans text-stone-900">
           <Navbar />
