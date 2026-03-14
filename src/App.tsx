@@ -804,15 +804,18 @@ const BrandDetail = () => {
   const { id } = useParams();
   const [brand, setBrand] = useState<Brand | null>(null);
   const [promotions, setPromotions] = useState<Promotion[]>([]);
+  const [kolReviews, setKolReviews] = useState<KOLReview[]>([]);
 
   useEffect(() => {
     const fetchData = async () => {
       if (!id) return;
       const { data: brandData } = await supabase.from('brands').select('*').eq('id', id).single();
       const { data: promoData } = await supabase.from('promotions').select('*').eq('brand_id', id).eq('is_active', true);
+      const { data: kolData } = await supabase.from('kol_reviews').select('*').eq('brand_id', id).order('created_at', { ascending: false });
       
       if (brandData) setBrand(brandData);
       if (promoData) setPromotions(promoData);
+      if (kolData) setKolReviews(kolData);
     };
     fetchData();
     window.scrollTo(0, 0);
@@ -869,6 +872,43 @@ const BrandDetail = () => {
                           CODE: {promo.discount_code}
                         </div>
                       )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* KOL Reviews */}
+            {kolReviews.length > 0 && (
+              <div className="mt-16">
+                <h2 className="text-2xl font-bold mb-8 border-l-4 border-orange-600 pl-4">開箱分享</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  {kolReviews.map(review => (
+                    <div key={review.id} className="bg-white rounded-3xl overflow-hidden shadow-sm border border-stone-100 group">
+                      <div className="relative aspect-video bg-stone-200">
+                        {review.media_type === 'video' ? (
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <img src={review.media_url} className="w-full h-full object-cover opacity-80" alt={review.title} />
+                            <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition-all flex items-center justify-center">
+                              <div className="w-12 h-12 bg-white/90 rounded-full flex items-center justify-center text-orange-600 shadow-xl">
+                                <Play className="w-6 h-6 fill-current" />
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <img src={review.media_url} className="w-full h-full object-cover" alt={review.title} />
+                        )}
+                      </div>
+                      <div className="p-6">
+                        <div className="flex items-center gap-3 mb-4">
+                          <img src={review.kol_avatar_url} className="w-8 h-8 rounded-full object-cover" alt={review.kol_name} />
+                          <span className="font-bold text-stone-800 text-sm">{review.kol_name}</span>
+                        </div>
+                        <h3 className="font-bold mb-2 group-hover:text-orange-600 transition-colors">{review.title}</h3>
+                        <div className="text-stone-500 text-xs line-clamp-2">
+                          <BlockRenderer content={review.content} />
+                        </div>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -1547,8 +1587,11 @@ const KOLReviewsPage = () => {
 
   useEffect(() => {
     const fetchReviews = async () => {
-      const { data } = await supabase.from('kol_reviews').select('*').order('created_at', { ascending: false });
-      if (data) setReviews(data);
+      const { data } = await supabase
+        .from('kol_reviews')
+        .select('*, brand:brands(name, logo_url)')
+        .order('created_at', { ascending: false });
+      if (data) setReviews(data as any);
     };
     fetchReviews();
   }, []);
@@ -1584,9 +1627,17 @@ const KOLReviewsPage = () => {
                 )}
               </div>
               <div className="p-6">
-                <div className="flex items-center gap-3 mb-4">
-                  <img src={review.kol_avatar_url} className="w-10 h-10 rounded-full object-cover" alt={review.kol_name} />
-                  <span className="font-bold text-stone-800">{review.kol_name}</span>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <img src={review.kol_avatar_url} className="w-10 h-10 rounded-full object-cover" alt={review.kol_name} />
+                    <span className="font-bold text-stone-800">{review.kol_name}</span>
+                  </div>
+                  {(review as any).brand && (
+                    <div className="flex items-center gap-2 px-3 py-1 bg-stone-50 rounded-full">
+                      <img src={(review as any).brand.logo_url} className="w-4 h-4 rounded-sm object-cover" alt={(review as any).brand.name} />
+                      <span className="text-[10px] font-bold text-stone-500">{(review as any).brand.name}</span>
+                    </div>
+                  )}
                 </div>
                 <h3 className="text-xl font-bold mb-2 group-hover:text-orange-600 transition-colors">{review.title}</h3>
                 <div className="text-stone-500 text-sm line-clamp-3 mb-4">
@@ -1730,6 +1781,7 @@ const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState<'events' | 'brands' | 'partners' | 'locations' | 'kol_reviews' | 'promotions'>('events');
   const [events, setEvents] = useState<Event[]>([]);
   const [allEvents, setAllEvents] = useState<Event[]>([]);
+  const [allBrands, setAllBrands] = useState<Brand[]>([]);
   const [brands, setBrands] = useState<Brand[]>([]);
   const [partners, setPartners] = useState<Partner[]>([]);
   const [kolReviews, setKolReviews] = useState<KOLReview[]>([]);
@@ -1787,11 +1839,17 @@ const AdminDashboard = () => {
     checkAuth();
     fetchData();
     fetchAllEvents();
+    fetchAllBrands();
   }, [activeTab]);
 
   const fetchAllEvents = async () => {
     const { data } = await supabase.from('events').select('id, title').order('created_at', { ascending: false });
     if (data) setAllEvents(data as any);
+  };
+
+  const fetchAllBrands = async () => {
+    const { data } = await supabase.from('brands').select('id, name').order('name', { ascending: true });
+    if (data) setAllBrands(data as any);
   };
 
   useEffect(() => {
@@ -1866,9 +1924,12 @@ const AdminDashboard = () => {
         if (error) throw error;
         if (data) setPartners(data as any);
       } else if (activeTab === 'kol_reviews') {
-        const { data, error } = await supabase.from('kol_reviews').select('*');
+        const { data, error } = await supabase.from('kol_reviews').select('*, brand:brands(name)');
         if (error) throw error;
         if (data) setKolReviews(data);
+
+        const { data: brandsData } = await supabase.from('brands').select('id, name');
+        if (brandsData) setBrands(brandsData as any);
       } else if (activeTab === 'promotions') {
         const { data, error } = await supabase.from('promotions').select('*, brand:brands(name)');
         if (error) throw error;
@@ -1998,7 +2059,7 @@ const AdminDashboard = () => {
     const formData = new FormData(e.currentTarget);
     const kolData = {
       title: formData.get('title') as string,
-      event_id: formData.get('event_id') as string,
+      brand_id: formData.get('brand_id') as string,
       kol_name: formData.get('kol_name') as string,
       kol_avatar_url: avatarUrl,
       media_type: formData.get('media_type') as string,
@@ -2329,6 +2390,7 @@ const AdminDashboard = () => {
                       <tr className="border-b border-stone-100 text-stone-400 text-sm">
                         <th className="pb-4 font-medium">標題</th>
                         <th className="pb-4 font-medium">KOL</th>
+                        <th className="pb-4 font-medium">品牌</th>
                         <th className="pb-4 font-medium">類型</th>
                         <th className="pb-4 font-medium text-right">操作</th>
                       </tr>
@@ -2338,6 +2400,7 @@ const AdminDashboard = () => {
                         <tr key={review.id} className="group">
                           <td className="py-4 font-medium">{review.title}</td>
                           <td className="py-4 text-sm">{review.kol_name}</td>
+                          <td className="py-4 text-sm">{(review as any).brand?.name || '-'}</td>
                           <td className="py-4">
                             <span className={cn(
                               "text-xs px-2 py-1 rounded-full flex items-center gap-1 w-fit",
@@ -2896,11 +2959,11 @@ const AdminDashboard = () => {
               <form onSubmit={handleSaveKOL} className="p-8 space-y-6 max-h-[70vh] overflow-y-auto">
                 <div className="grid grid-cols-2 gap-6">
                   <div className="col-span-2">
-                    <label className="block text-sm font-medium text-stone-700 mb-2">所屬活動</label>
-                    <select name="event_id" defaultValue={editingKOL?.event_id} className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" required>
-                      <option value="">請選擇活動</option>
-                      {allEvents.map(event => (
-                        <option key={event.id} value={event.id}>{event.title}</option>
+                    <label className="block text-sm font-medium text-stone-700 mb-2">所屬品牌</label>
+                    <select name="brand_id" defaultValue={editingKOL?.brand_id} className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" required>
+                      <option value="">請選擇品牌</option>
+                      {allBrands.map(brand => (
+                        <option key={brand.id} value={brand.id}>{brand.name}</option>
                       ))}
                     </select>
                   </div>

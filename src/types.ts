@@ -68,7 +68,7 @@ export interface Review {
 
 export interface KOLReview {
   id: string;
-  event_id: string;
+  brand_id: string;
   kol_name: string;
   kol_avatar_url: string;
   title: string;
