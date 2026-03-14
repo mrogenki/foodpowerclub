@@ -878,21 +878,38 @@ const Login = () => {
 };
 
 const MapPage = () => {
-  const [selectedShop, setSelectedShop] = useState<any>(null);
+  const [selectedShop, setSelectedShop] = useState<Location | null>(null);
+  const [activeCategory, setActiveCategory] = useState<string>('全部');
+  const [locations, setLocations] = useState<Location[]>([]);
 
-  const restaurants = [
-    { id: 1, name: '乾杯燒肉居酒屋', position: { lat: 25.0422, lng: 121.5435 }, type: '燒肉', address: '台北市大安區敦化南路一段236巷17號' },
-    { id: 2, name: '發肉燒肉餐酒', position: { lat: 25.0485, lng: 121.5495 }, type: '燒肉', address: '台北市松山區敦化北路4巷56號' },
-    { id: 3, name: '詹記麻辣火鍋', position: { lat: 25.0268, lng: 121.5438 }, type: '火鍋', address: '台北市大安區和平東路三段60號' },
-    { id: 4, name: '春水堂', position: { lat: 25.0462, lng: 121.5312 }, type: '手搖', address: '台北市中山區南京東路一段29號' },
-  ];
+  useEffect(() => {
+    const fetchLocations = async () => {
+      const { data } = await supabase.from('locations').select('*');
+      if (data) setLocations(data);
+    };
+    fetchLocations();
+  }, []);
+
+  const categoryMap: Record<string, string> = {
+    '全部': '全部',
+    '燒肉': 'BBQ',
+    '火鍋': 'Hotpot',
+    '便當': 'Bento',
+    '手搖': 'Drink'
+  };
+
+  const filteredLocations = activeCategory === '全部' 
+    ? locations 
+    : locations.filter(loc => loc.category === categoryMap[activeCategory]);
+
+  const categories = ['全部', '燒肉', '火鍋', '便當', '手搖'];
 
   return (
     <div className="pt-24 min-h-screen bg-stone-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-12">
           <h1 className="text-4xl font-bold text-stone-900 mb-4">美食地圖</h1>
-          <p className="text-stone-500">探索活動周邊的精選美食店家（Google Maps 驅動）</p>
+          <p className="text-stone-500">探索活動周邊的精選美食店家（點擊分類進行篩選）</p>
         </div>
         
         <div className="bg-white rounded-3xl p-4 shadow-sm border border-stone-200 h-[600px] relative overflow-hidden z-0">
@@ -902,26 +919,34 @@ const MapPage = () => {
               defaultZoom={14}
               gestureHandling={'greedy'}
               disableDefaultUI={false}
-              mapId="bf51a910020fa25a" // Optional: Use your Map ID if you have one for Advanced Markers
             >
-              {restaurants.map((shop) => (
+              {filteredLocations.map((loc) => (
                 <AdvancedMarker
-                  key={shop.id}
-                  position={shop.position}
-                  onClick={() => setSelectedShop(shop)}
+                  key={loc.id}
+                  position={{ lat: loc.lat, lng: loc.lng }}
+                  onClick={() => setSelectedShop(loc)}
                 >
-                  <Pin background={'#ea580c'} glyphColor={'#fff'} borderColor={'#9a3412'} />
+                  <Pin 
+                    background={loc.category === 'BBQ' ? '#ef4444' : loc.category === 'Hotpot' ? '#f97316' : loc.category === 'Drink' ? '#06b6d4' : '#ea580c'} 
+                    glyphColor={'#fff'} 
+                    borderColor={'#fff'} 
+                  />
                 </AdvancedMarker>
               ))}
 
               {selectedShop && (
                 <InfoWindow
-                  position={selectedShop.position}
+                  position={{ lat: selectedShop.lat, lng: selectedShop.lng }}
                   onCloseClick={() => setSelectedShop(null)}
                 >
                   <div className="p-1 max-w-[200px]">
                     <h3 className="font-bold text-stone-900 text-sm">{selectedShop.name}</h3>
-                    <p className="text-xs text-orange-600 font-medium mb-1">{selectedShop.type}</p>
+                    <p className="text-xs text-orange-600 font-medium mb-1">
+                      {selectedShop.category === 'BBQ' ? '燒肉' : 
+                       selectedShop.category === 'Hotpot' ? '火鍋' : 
+                       selectedShop.category === 'Bento' ? '便當' : 
+                       selectedShop.category === 'Drink' ? '手搖' : selectedShop.category}
+                    </p>
                     <p className="text-[10px] text-stone-500 leading-tight">{selectedShop.address}</p>
                   </div>
                 </InfoWindow>
@@ -930,16 +955,26 @@ const MapPage = () => {
           </APIProvider>
         </div>
 
-        <div className="mt-12 grid grid-cols-1 md:grid-cols-4 gap-6">
-          {['燒肉', '火鍋', '便當', '手搖'].map((cat) => (
-            <button key={cat} className="bg-white p-6 rounded-2xl border border-stone-100 hover:border-orange-200 hover:shadow-md transition-all text-center">
-              <span className="block text-2xl mb-2">
+        <div className="mt-12 grid grid-cols-2 md:grid-cols-5 gap-4">
+          {categories.map((cat) => (
+            <button 
+              key={cat} 
+              onClick={() => setActiveCategory(cat)}
+              className={cn(
+                "p-4 rounded-2xl border transition-all text-center flex flex-col items-center justify-center gap-2",
+                activeCategory === cat 
+                  ? "bg-orange-600 border-orange-600 text-white shadow-lg scale-105" 
+                  : "bg-white border-stone-100 text-stone-700 hover:border-orange-200 hover:shadow-md"
+              )}
+            >
+              <span className="text-2xl">
+                {cat === '全部' && '🍴'}
                 {cat === '燒肉' && '🔥'}
                 {cat === '火鍋' && '🍲'}
                 {cat === '便當' && '🍱'}
                 {cat === '手搖' && '🧋'}
               </span>
-              <span className="font-bold text-stone-700">{cat}</span>
+              <span className="font-bold text-sm">{cat}</span>
             </button>
           ))}
         </div>
@@ -1139,6 +1174,7 @@ const AdminDashboard = () => {
   const [partners, setPartners] = useState<Partner[]>([]);
   const [kolReviews, setKolReviews] = useState<KOLReview[]>([]);
   const [promotions, setPromotions] = useState<Promotion[]>([]);
+  const [locations, setLocations] = useState<Location[]>([]);
   
   const [showEventModal, setShowEventModal] = useState(false);
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
@@ -1154,6 +1190,9 @@ const AdminDashboard = () => {
   
   const [showPromotionModal, setShowPromotionModal] = useState(false);
   const [editingPromotion, setEditingPromotion] = useState<Promotion | null>(null);
+
+  const [showLocationModal, setShowLocationModal] = useState(false);
+  const [editingLocation, setEditingLocation] = useState<Location | null>(null);
 
   const [imageUrl, setImageUrl] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
@@ -1218,6 +1257,9 @@ const AdminDashboard = () => {
     } else if (activeTab === 'promotions') {
       const { data } = await supabase.from('promotions').select('*, brand:brands(name)').order('created_at', { ascending: false });
       if (data) setPromotions(data as any);
+    } else if (activeTab === 'locations') {
+      const { data } = await supabase.from('locations').select('*').order('created_at', { ascending: false });
+      if (data) setLocations(data as any);
     }
   };
 
@@ -1435,6 +1477,44 @@ const AdminDashboard = () => {
     }
   };
 
+  const handleSaveLocation = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const locationData = {
+      name: formData.get('name') as string,
+      category: formData.get('category') as any,
+      address: formData.get('address') as string,
+      lat: parseFloat(formData.get('lat') as string),
+      lng: parseFloat(formData.get('lng') as string),
+    };
+
+    let error;
+    if (editingLocation) {
+      const result = await supabase.from('locations').update(locationData).eq('id', editingLocation.id);
+      error = result.error;
+    } else {
+      const result = await supabase.from('locations').insert([locationData]);
+      error = result.error;
+    }
+    
+    if (error) {
+      alert(`儲存失敗: ${error.message}`);
+      return;
+    }
+    
+    setShowLocationModal(false);
+    setEditingLocation(null);
+    fetchData();
+  };
+
+  const handleDeleteLocation = async (id: string) => {
+    if (window.confirm('確定要刪除此地點嗎？')) {
+      const { error } = await supabase.from('locations').delete().eq('id', id);
+      if (error) alert(`刪除失敗: ${error.message}`);
+      else fetchData();
+    }
+  };
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
     navigate('/');
@@ -1500,7 +1580,15 @@ const AdminDashboard = () => {
             >
               贊助管理
             </button>
-            <button className="w-full text-left px-4 py-3 rounded-xl text-stone-600 hover:bg-stone-200 font-medium">地圖管理</button>
+            <button 
+              onClick={() => setActiveTab('locations')}
+              className={cn(
+                "w-full text-left px-4 py-3 rounded-xl font-medium transition-all",
+                activeTab === 'locations' ? "bg-orange-600 text-white shadow-lg" : "text-stone-600 hover:bg-stone-200"
+              )}
+            >
+              地圖管理
+            </button>
           </div>
 
           <div className="md:col-span-3 bg-white rounded-3xl p-8 border border-stone-200">
@@ -1798,6 +1886,70 @@ const AdminDashboard = () => {
                       {promotions.length === 0 && (
                         <tr>
                           <td colSpan={4} className="py-12 text-center text-stone-400">目前尚無優惠資料</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+
+            {activeTab === 'locations' && (
+              <>
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-xl font-bold">美食地圖管理</h2>
+                  <button 
+                    onClick={() => { setEditingLocation(null); setShowLocationModal(true); }}
+                    className="bg-stone-900 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2"
+                  >
+                    <Plus className="w-4 h-4" /> 新增地點
+                  </button>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="border-b border-stone-100 text-stone-400 text-sm">
+                        <th className="pb-4 font-medium">店名</th>
+                        <th className="pb-4 font-medium">類型</th>
+                        <th className="pb-4 font-medium">地址</th>
+                        <th className="pb-4 font-medium text-right">操作</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-stone-50">
+                      {locations.map(loc => (
+                        <tr key={loc.id} className="group">
+                          <td className="py-4 font-medium">{loc.name}</td>
+                          <td className="py-4 text-sm">
+                            <span className="bg-stone-100 px-2 py-1 rounded-md text-stone-600">
+                              {loc.category === 'BBQ' ? '燒肉' : 
+                               loc.category === 'Hotpot' ? '火鍋' : 
+                               loc.category === 'Bento' ? '便當' : 
+                               loc.category === 'Drink' ? '手搖' : loc.category}
+                            </span>
+                          </td>
+                          <td className="py-4 text-sm text-stone-500">{loc.address}</td>
+                          <td className="py-4 text-right">
+                            <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button 
+                                onClick={() => { setEditingLocation(loc); setShowLocationModal(true); }}
+                                className="p-2 text-stone-400 hover:text-orange-600"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </button>
+                              <button 
+                                onClick={() => handleDeleteLocation(loc.id)}
+                                className="p-2 text-stone-400 hover:text-red-600"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                      {locations.length === 0 && (
+                        <tr>
+                          <td colSpan={4} className="py-12 text-center text-stone-400">目前尚無地點資料</td>
                         </tr>
                       )}
                     </tbody>
@@ -2189,6 +2341,67 @@ const AdminDashboard = () => {
                 <div className="pt-6 flex gap-4">
                   <button type="button" onClick={() => { setShowPromotionModal(false); setEditingPromotion(null); }} className="flex-1 px-6 py-3 rounded-xl border border-stone-200 font-bold hover:bg-stone-50 transition-colors">取消</button>
                   <button type="submit" className="flex-1 px-6 py-3 rounded-xl bg-orange-600 text-white font-bold hover:bg-orange-500 transition-colors">儲存優惠</button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Location Modal */}
+      <AnimatePresence>
+        {showLocationModal && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => { setShowLocationModal(false); setEditingLocation(null); }}
+              className="absolute inset-0 bg-stone-900/60 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden"
+            >
+              <div className="p-8 border-b border-stone-100 flex justify-between items-center">
+                <h3 className="text-xl font-bold">{editingLocation ? '編輯地點' : '新增地點'}</h3>
+                <button onClick={() => { setShowLocationModal(false); setEditingLocation(null); }} className="text-stone-400 hover:text-stone-600">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+              <form onSubmit={handleSaveLocation} className="p-8 space-y-6 max-h-[70vh] overflow-y-auto">
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="col-span-2">
+                    <label className="block text-sm font-medium text-stone-700 mb-2">店名</label>
+                    <input name="name" defaultValue={editingLocation?.name} className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" required />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-2">類型</label>
+                    <select name="category" defaultValue={editingLocation?.category} className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" required>
+                      <option value="BBQ">燒肉</option>
+                      <option value="Hotpot">火鍋</option>
+                      <option value="Bento">便當</option>
+                      <option value="Drink">手搖</option>
+                    </select>
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-sm font-medium text-stone-700 mb-2">地址</label>
+                    <input name="address" defaultValue={editingLocation?.address} className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" required />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-2">緯度 (Latitude)</label>
+                    <input type="number" step="any" name="lat" defaultValue={editingLocation?.lat} className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" required />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-2">經度 (Longitude)</label>
+                    <input type="number" step="any" name="lng" defaultValue={editingLocation?.lng} className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" required />
+                  </div>
+                </div>
+                <div className="pt-6 flex gap-4">
+                  <button type="button" onClick={() => { setShowLocationModal(false); setEditingLocation(null); }} className="flex-1 px-6 py-3 rounded-xl border border-stone-200 font-bold hover:bg-stone-50 transition-colors">取消</button>
+                  <button type="submit" className="flex-1 px-6 py-3 rounded-xl bg-orange-600 text-white font-bold hover:bg-orange-500 transition-colors">儲存地點</button>
                 </div>
               </form>
             </motion.div>
