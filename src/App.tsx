@@ -1786,7 +1786,11 @@ const AdminDashboard = () => {
     
     if (error) {
       console.error('Save location error:', error);
-      alert(`儲存失敗: ${error.message}`);
+      if (error.message.includes('column') || error.message.includes('schema cache')) {
+        alert(`儲存失敗：資料庫缺少必要欄位。\n\n請至 Supabase SQL Editor 執行以下指令：\n\nALTER TABLE locations \nADD COLUMN IF NOT EXISTS avg_price TEXT, \nADD COLUMN IF NOT EXISTS booking_url TEXT, \nADD COLUMN IF NOT EXISTS order_url TEXT, \nADD COLUMN IF NOT EXISTS business_hours TEXT;`);
+      } else {
+        alert(`儲存失敗: ${error.message}`);
+      }
       return;
     }
     
