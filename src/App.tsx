@@ -1056,14 +1056,16 @@ const MapPage = () => {
                     </div>
                   )}
 
-                  <div className="pt-5 border-t border-stone-100">
-                    <div className="bg-gradient-to-br from-orange-50 to-orange-100/50 rounded-2xl p-4 border border-orange-100">
-                      <div className="flex items-center gap-2 text-orange-700 font-bold text-sm mb-1">
-                        <Tag className="w-4 h-4" /> 祭典專屬折扣
+                  {selectedShop.discount_info && (
+                    <div className="pt-5 border-t border-stone-100">
+                      <div className="bg-gradient-to-br from-orange-50 to-orange-100/50 rounded-2xl p-4 border border-orange-100">
+                        <div className="flex items-center gap-2 text-orange-700 font-bold text-sm mb-1">
+                          <Tag className="w-4 h-4" /> 祭典專屬折扣
+                        </div>
+                        <p className="text-xs text-orange-600 leading-relaxed">{selectedShop.discount_info}</p>
                       </div>
-                      <p className="text-xs text-orange-600 leading-relaxed">出示「食在力量」活動畫面，即享全單 9 折優惠！</p>
                     </div>
-                  </div>
+                  )}
                 </div>
 
                 <div className="p-4 bg-stone-50 border-t border-stone-100 shrink-0">
@@ -1367,6 +1369,7 @@ const AdminDashboard = () => {
   const [locationPhone, setLocationPhone] = useState('');
   const [locationImageUrl, setLocationImageUrl] = useState('');
   const [locationDescription, setLocationDescription] = useState('');
+  const [locationDiscount, setLocationDiscount] = useState('');
   const [locationRating, setLocationRating] = useState(5);
 
   const [imageUrl, setImageUrl] = useState('');
@@ -1417,6 +1420,7 @@ const AdminDashboard = () => {
       setLocationPhone(editingLocation.phone || '');
       setLocationImageUrl(editingLocation.image_url || '');
       setLocationDescription(editingLocation.description || '');
+      setLocationDiscount(editingLocation.discount_info || '');
       setLocationRating(editingLocation.rating || 5);
     } else {
       setEditorContent('');
@@ -1431,6 +1435,7 @@ const AdminDashboard = () => {
       setLocationPhone('');
       setLocationImageUrl('');
       setLocationDescription('');
+      setLocationDiscount('');
       setLocationRating(5);
     }
   }, [editingEvent, editingBrand, editingPartner, editingKOL, editingPromotion, editingLocation]);
@@ -1709,6 +1714,7 @@ const AdminDashboard = () => {
       phone: locationPhone,
       image_url: locationImageUrl,
       description: locationDescription,
+      discount_info: locationDiscount,
       rating: locationRating,
     };
 
@@ -2622,7 +2628,8 @@ const AdminDashboard = () => {
                       // 自動帶入 Google 資訊
                       if (place.international_phone_number) setLocationPhone(place.international_phone_number);
                       if (place.rating) setLocationRating(place.rating);
-                      if (place.editorial_summary) setLocationDescription(place.editorial_summary);
+                      const summary = (place as any).editorial_summary;
+                      if (summary && summary.overview) setLocationDescription(summary.overview);
                       if (place.photos && place.photos.length > 0) {
                         // 取得 Google 第一張照片的 URL (1000px 寬度)
                         const photoUrl = place.photos[0].getUrl({ maxWidth: 1000 });
@@ -2723,6 +2730,18 @@ const AdminDashboard = () => {
                         <ImageIcon className="w-5 h-5" />
                       </button>
                     </div>
+                  </div>
+
+                  <div className="col-span-2">
+                    <label className="block text-sm font-medium text-stone-700 mb-2">
+                      祭典優惠內容 <span className="text-stone-400 font-normal">(選填，留空則不顯示)</span>
+                    </label>
+                    <input 
+                      value={locationDiscount} 
+                      onChange={(e) => setLocationDiscount(e.target.value)}
+                      placeholder="例如：出示畫面享 9 折。非祭典期間請留空。"
+                      className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" 
+                    />
                   </div>
 
                   <div className="col-span-2">
