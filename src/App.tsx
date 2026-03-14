@@ -1791,7 +1791,7 @@ const AdminDashboard = () => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              onClick={() => setShowEventModal(false)}
+              onClick={() => { setShowEventModal(false); setEditingEvent(null); }}
               className="absolute inset-0 bg-stone-900/60 backdrop-blur-sm"
             />
             <motion.div 
@@ -1802,7 +1802,7 @@ const AdminDashboard = () => {
             >
               <div className="p-8 border-b border-stone-100 flex justify-between items-center">
                 <h3 className="text-xl font-bold">{editingEvent ? '編輯活動' : '新增活動'}</h3>
-                <button onClick={() => setShowEventModal(false)} className="text-stone-400 hover:text-stone-600">
+                <button onClick={() => { setShowEventModal(false); setEditingEvent(null); }} className="text-stone-400 hover:text-stone-600">
                   <X className="w-6 h-6" />
                 </button>
               </div>
@@ -1852,7 +1852,7 @@ const AdminDashboard = () => {
                   </div>
                 </div>
                 <div className="pt-6 flex gap-4">
-                  <button type="button" onClick={() => setShowEventModal(false)} className="flex-1 px-6 py-3 rounded-xl border border-stone-200 font-bold hover:bg-stone-50 transition-colors">取消</button>
+                  <button type="button" onClick={() => { setShowEventModal(false); setEditingEvent(null); }} className="flex-1 px-6 py-3 rounded-xl border border-stone-200 font-bold hover:bg-stone-50 transition-colors">取消</button>
                   <button type="submit" className="flex-1 px-6 py-3 rounded-xl bg-orange-600 text-white font-bold hover:bg-orange-500 transition-colors">儲存活動</button>
                 </div>
               </form>
@@ -1869,7 +1869,7 @@ const AdminDashboard = () => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              onClick={() => setShowBrandModal(false)}
+              onClick={() => { setShowBrandModal(false); setEditingBrand(null); }}
               className="absolute inset-0 bg-stone-900/60 backdrop-blur-sm"
             />
             <motion.div 
@@ -1880,7 +1880,7 @@ const AdminDashboard = () => {
             >
               <div className="p-8 border-b border-stone-100 flex justify-between items-center">
                 <h3 className="text-xl font-bold">{editingBrand ? '編輯品牌' : '新增品牌'}</h3>
-                <button onClick={() => setShowBrandModal(false)} className="text-stone-400 hover:text-stone-600">
+                <button onClick={() => { setShowBrandModal(false); setEditingBrand(null); }} className="text-stone-400 hover:text-stone-600">
                   <X className="w-6 h-6" />
                 </button>
               </div>
@@ -1928,7 +1928,7 @@ const AdminDashboard = () => {
                   </div>
                 </div>
                 <div className="pt-6 flex gap-4">
-                  <button type="button" onClick={() => setShowBrandModal(false)} className="flex-1 px-6 py-3 rounded-xl border border-stone-200 font-bold hover:bg-stone-50 transition-colors">取消</button>
+                  <button type="button" onClick={() => { setShowBrandModal(false); setEditingBrand(null); }} className="flex-1 px-6 py-3 rounded-xl border border-stone-200 font-bold hover:bg-stone-50 transition-colors">取消</button>
                   <button type="submit" className="flex-1 px-6 py-3 rounded-xl bg-orange-600 text-white font-bold hover:bg-orange-500 transition-colors">儲存品牌</button>
                 </div>
               </form>
@@ -1945,7 +1945,7 @@ const AdminDashboard = () => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              onClick={() => setShowPartnerModal(false)}
+              onClick={() => { setShowPartnerModal(false); setEditingPartner(null); }}
               className="absolute inset-0 bg-stone-900/60 backdrop-blur-sm"
             />
             <motion.div 
@@ -1956,7 +1956,7 @@ const AdminDashboard = () => {
             >
               <div className="p-8 border-b border-stone-100 flex justify-between items-center">
                 <h3 className="text-xl font-bold">{editingPartner ? '編輯贊助' : '新增贊助'}</h3>
-                <button onClick={() => setShowPartnerModal(false)} className="text-stone-400 hover:text-stone-600">
+                <button onClick={() => { setShowPartnerModal(false); setEditingPartner(null); }} className="text-stone-400 hover:text-stone-600">
                   <X className="w-6 h-6" />
                 </button>
               </div>
@@ -2004,7 +2004,7 @@ const AdminDashboard = () => {
                   </div>
                 </div>
                 <div className="pt-6 flex gap-4">
-                  <button type="button" onClick={() => setShowPartnerModal(false)} className="flex-1 px-6 py-3 rounded-xl border border-stone-200 font-bold hover:bg-stone-50 transition-colors">取消</button>
+                  <button type="button" onClick={() => { setShowPartnerModal(false); setEditingPartner(null); }} className="flex-1 px-6 py-3 rounded-xl border border-stone-200 font-bold hover:bg-stone-50 transition-colors">取消</button>
                   <button type="submit" className="flex-1 px-6 py-3 rounded-xl bg-orange-600 text-white font-bold hover:bg-orange-500 transition-colors">儲存贊助</button>
                 </div>
               </form>
@@ -2021,7 +2021,7 @@ const AdminDashboard = () => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              onClick={() => setShowKOLModal(false)}
+              onClick={() => { setShowKOLModal(false); setEditingKOL(null); }}
               className="absolute inset-0 bg-stone-900/60 backdrop-blur-sm"
             />
             <motion.div 
@@ -2032,7 +2032,7 @@ const AdminDashboard = () => {
             >
               <div className="p-8 border-b border-stone-100 flex justify-between items-center">
                 <h3 className="text-xl font-bold">{editingKOL ? '編輯開箱' : '新增開箱'}</h3>
-                <button onClick={() => setShowKOLModal(false)} className="text-stone-400 hover:text-stone-600">
+                <button onClick={() => { setShowKOLModal(false); setEditingKOL(null); }} className="text-stone-400 hover:text-stone-600">
                   <X className="w-6 h-6" />
                 </button>
               </div>
@@ -2086,7 +2086,7 @@ const AdminDashboard = () => {
                   </div>
                 </div>
                 <div className="pt-6 flex gap-4">
-                  <button type="button" onClick={() => setShowKOLModal(false)} className="flex-1 px-6 py-3 rounded-xl border border-stone-200 font-bold hover:bg-stone-50 transition-colors">取消</button>
+                  <button type="button" onClick={() => { setShowKOLModal(false); setEditingKOL(null); }} className="flex-1 px-6 py-3 rounded-xl border border-stone-200 font-bold hover:bg-stone-50 transition-colors">取消</button>
                   <button type="submit" className="flex-1 px-6 py-3 rounded-xl bg-orange-600 text-white font-bold hover:bg-orange-500 transition-colors">儲存開箱</button>
                 </div>
               </form>
@@ -2103,7 +2103,7 @@ const AdminDashboard = () => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              onClick={() => setShowPromotionModal(false)}
+              onClick={() => { setShowPromotionModal(false); setEditingPromotion(null); }}
               className="absolute inset-0 bg-stone-900/60 backdrop-blur-sm"
             />
             <motion.div 
@@ -2114,7 +2114,7 @@ const AdminDashboard = () => {
             >
               <div className="p-8 border-b border-stone-100 flex justify-between items-center">
                 <h3 className="text-xl font-bold">{editingPromotion ? '編輯優惠' : '新增優惠'}</h3>
-                <button onClick={() => setShowPromotionModal(false)} className="text-stone-400 hover:text-stone-600">
+                <button onClick={() => { setShowPromotionModal(false); setEditingPromotion(null); }} className="text-stone-400 hover:text-stone-600">
                   <X className="w-6 h-6" />
                 </button>
               </div>
@@ -2161,7 +2161,7 @@ const AdminDashboard = () => {
                   </div>
                 </div>
                 <div className="pt-6 flex gap-4">
-                  <button type="button" onClick={() => setShowPromotionModal(false)} className="flex-1 px-6 py-3 rounded-xl border border-stone-200 font-bold hover:bg-stone-50 transition-colors">取消</button>
+                  <button type="button" onClick={() => { setShowPromotionModal(false); setEditingPromotion(null); }} className="flex-1 px-6 py-3 rounded-xl border border-stone-200 font-bold hover:bg-stone-50 transition-colors">取消</button>
                   <button type="submit" className="flex-1 px-6 py-3 rounded-xl bg-orange-600 text-white font-bold hover:bg-orange-500 transition-colors">儲存優惠</button>
                 </div>
               </form>
