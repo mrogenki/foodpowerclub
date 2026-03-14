@@ -30,6 +30,7 @@ export interface Partner {
   type: 'KOL' | 'Restaurant' | 'Sponsor';
   content: string;
   logo_url: string;
+  sort_order: number;
   created_at: string;
 }
 

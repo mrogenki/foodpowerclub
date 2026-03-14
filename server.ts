@@ -44,6 +44,7 @@ db.exec(`
     type TEXT,
     content TEXT,
     logo_url TEXT,
+    sort_order INTEGER DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(event_id) REFERENCES events(id)
   );
@@ -156,9 +157,9 @@ async function startServer() {
     const eventId = req.query.event_id;
     let partners;
     if (eventId) {
-      partners = db.prepare("SELECT * FROM partners WHERE event_id = ?").all(eventId);
+      partners = db.prepare("SELECT * FROM partners WHERE event_id = ? ORDER BY sort_order ASC").all(eventId);
     } else {
-      partners = db.prepare("SELECT * FROM partners").all();
+      partners = db.prepare("SELECT * FROM partners ORDER BY sort_order ASC").all();
     }
     res.json(partners);
   });

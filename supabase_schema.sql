@@ -36,6 +36,7 @@
     type TEXT CHECK (type IN ('KOL', 'Restaurant', 'Sponsor')),
     content TEXT,
     logo_url TEXT,
+    sort_order INTEGER DEFAULT 0,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
   );
 

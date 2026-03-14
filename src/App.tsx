@@ -306,7 +306,7 @@ const Home = () => {
       if (reviewsData) setReviews(reviewsData);
 
       // Fetch Partners
-      const { data: partnersData } = await supabase.from('partners').select('*').limit(6);
+      const { data: partnersData } = await supabase.from('partners').select('*').order('sort_order', { ascending: true }).limit(6);
       if (partnersData) setPartners(partnersData);
     };
     fetchHomeData();
@@ -653,7 +653,7 @@ const EventDetail = () => {
       if (!id) return;
       const { data: eventData } = await supabase.from('events').select('*').eq('id', id).single();
       const { data: brandsData } = await supabase.from('brands').select('*').eq('event_id', id);
-      const { data: partnersData } = await supabase.from('partners').select('*').eq('event_id', id);
+      const { data: partnersData } = await supabase.from('partners').select('*').eq('event_id', id).order('sort_order', { ascending: true });
       
       if (eventData) setEvent(eventData);
       if (brandsData) setBrands(brandsData);
@@ -927,7 +927,7 @@ const PartnersPage = () => {
 
   useEffect(() => {
     const fetchPartners = async () => {
-      const { data } = await supabase.from('partners').select('*');
+      const { data } = await supabase.from('partners').select('*').order('sort_order', { ascending: true });
       if (data) setPartners(data);
     };
     fetchPartners();
@@ -1184,7 +1184,7 @@ const AdminDashboard = () => {
       const { data } = await supabase.from('brands').select('*').order('created_at', { ascending: false });
       if (data) setBrands(data as any);
     } else if (activeTab === 'partners') {
-      const { data } = await supabase.from('partners').select('*').order('created_at', { ascending: false });
+      const { data } = await supabase.from('partners').select('*').order('sort_order', { ascending: true });
       if (data) setPartners(data as any);
     } else if (activeTab === 'kol_reviews') {
       const { data } = await supabase.from('kol_reviews').select('*').order('created_at', { ascending: false });
@@ -1272,6 +1272,7 @@ const AdminDashboard = () => {
       name: formData.get('name') as string,
       event_id: formData.get('event_id') as string,
       type: formData.get('type') as string,
+      sort_order: parseInt(formData.get('sort_order') as string) || 0,
       logo_url: logoUrl,
       content: editorContent,
     };
@@ -1988,6 +1989,10 @@ const AdminDashboard = () => {
                       value={logoUrl} 
                       onChange={setLogoUrl} 
                     />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-sm font-medium text-stone-700 mb-2">排序權重 (數字越小越前面)</label>
+                    <input type="number" name="sort_order" defaultValue={editingPartner?.sort_order || 0} className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" />
                   </div>
                   <div className="col-span-2">
                     <label className="block text-sm font-medium text-stone-700 mb-2">夥伴介紹 (區塊編輯器)</label>
