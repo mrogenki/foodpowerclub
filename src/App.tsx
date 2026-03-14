@@ -24,7 +24,8 @@ import {
   Ticket,
   FileText,
   Video,
-  Search
+  Search,
+  RefreshCw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import ReactMarkdown from 'react-markdown';
@@ -889,11 +890,21 @@ const MapPage = () => {
 
   useEffect(() => {
     const fetchLocations = async () => {
-      const { data } = await supabase.from('locations').select('*');
-      if (data) setLocations(data);
+      try {
+        const { data, error } = await supabase.from('locations').select('*');
+        if (error) throw error;
+        if (data) setLocations(data);
+      } catch (error: any) {
+        console.error('Fetch locations error:', error);
+      }
     };
     fetchLocations();
   }, []);
+
+  const handleRefresh = async () => {
+    const { data } = await supabase.from('locations').select('*');
+    if (data) setLocations(data);
+  };
 
   const categoryMap: Record<string, string> = {
     '全部': '全部',
@@ -912,9 +923,17 @@ const MapPage = () => {
   return (
     <div className="pt-24 min-h-screen bg-stone-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="mb-12">
-          <h1 className="text-4xl font-bold text-stone-900 mb-4">美食地圖</h1>
-          <p className="text-stone-500">探索活動周邊的精選美食店家（點擊分類進行篩選）</p>
+        <div className="mb-12 flex justify-between items-end">
+          <div>
+            <h1 className="text-4xl font-bold text-stone-900 mb-4">美食地圖</h1>
+            <p className="text-stone-500">探索活動周邊的精選美食店家（點擊分類進行篩選）</p>
+          </div>
+          <button 
+            onClick={handleRefresh}
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-stone-200 rounded-xl text-stone-600 hover:text-orange-600 hover:border-orange-600 transition-all text-sm font-medium"
+          >
+            <RefreshCw className="w-4 h-4" /> 重新整理
+          </button>
         </div>
         
         <div className="bg-white rounded-3xl p-4 shadow-sm border border-stone-200 h-[600px] relative overflow-hidden z-0">
@@ -1304,24 +1323,37 @@ const AdminDashboard = () => {
   }, [editingEvent, editingBrand, editingPartner, editingKOL, editingPromotion, editingLocation]);
 
   const fetchData = async () => {
-    if (activeTab === 'events') {
-      const { data } = await supabase.from('events').select('*').order('created_at', { ascending: false });
-      if (data) setEvents(data);
-    } else if (activeTab === 'brands') {
-      const { data } = await supabase.from('brands').select('*').order('created_at', { ascending: false });
-      if (data) setBrands(data as any);
-    } else if (activeTab === 'partners') {
-      const { data } = await supabase.from('partners').select('*').order('sort_order', { ascending: true });
-      if (data) setPartners(data as any);
-    } else if (activeTab === 'kol_reviews') {
-      const { data } = await supabase.from('kol_reviews').select('*').order('created_at', { ascending: false });
-      if (data) setKolReviews(data);
-    } else if (activeTab === 'promotions') {
-      const { data } = await supabase.from('promotions').select('*, brand:brands(name)').order('created_at', { ascending: false });
-      if (data) setPromotions(data as any);
-    } else if (activeTab === 'locations') {
-      const { data } = await supabase.from('locations').select('*').order('created_at', { ascending: false });
-      if (data) setLocations(data as any);
+    try {
+      if (activeTab === 'events') {
+        const { data, error } = await supabase.from('events').select('*');
+        if (error) throw error;
+        if (data) setEvents(data);
+      } else if (activeTab === 'brands') {
+        const { data, error } = await supabase.from('brands').select('*');
+        if (error) throw error;
+        if (data) setBrands(data as any);
+      } else if (activeTab === 'partners') {
+        const { data, error } = await supabase.from('partners').select('*').order('sort_order', { ascending: true });
+        if (error) throw error;
+        if (data) setPartners(data as any);
+      } else if (activeTab === 'kol_reviews') {
+        const { data, error } = await supabase.from('kol_reviews').select('*');
+        if (error) throw error;
+        if (data) setKolReviews(data);
+      } else if (activeTab === 'promotions') {
+        const { data, error } = await supabase.from('promotions').select('*, brand:brands(name)');
+        if (error) throw error;
+        if (data) setPromotions(data as any);
+      } else if (activeTab === 'locations') {
+        console.log('Fetching locations...');
+        const { data, error } = await supabase.from('locations').select('*');
+        if (error) throw error;
+        console.log('Fetched locations:', data);
+        if (data) setLocations(data as any);
+      }
+    } catch (error: any) {
+      console.error(`讀取 ${activeTab} 資料失敗:`, error);
+      alert(`讀取資料失敗: ${error.message || '未知錯誤'}`);
     }
   };
 
@@ -1541,13 +1573,29 @@ const AdminDashboard = () => {
 
   const handleSaveLocation = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    
+    const lat = typeof locationLat === 'string' ? parseFloat(locationLat) : locationLat;
+    const lng = typeof locationLng === 'string' ? parseFloat(locationLng) : locationLng;
+
+    if (!locationName.trim()) {
+      alert('請輸入店名');
+      return;
+    }
+
+    if (isNaN(lat as number) || isNaN(lng as number)) {
+      alert('請選擇有效的地點或輸入正確的經緯度');
+      return;
+    }
+
     const locationData = {
       name: locationName,
       category: locationCategory,
       address: locationAddress,
-      lat: typeof locationLat === 'string' ? parseFloat(locationLat) : locationLat,
-      lng: typeof locationLng === 'string' ? parseFloat(locationLng) : locationLng,
+      lat: lat,
+      lng: lng,
     };
+
+    console.log('Saving location data:', locationData);
 
     let error;
     if (editingLocation) {
@@ -1559,10 +1607,12 @@ const AdminDashboard = () => {
     }
     
     if (error) {
+      console.error('Save location error:', error);
       alert(`儲存失敗: ${error.message}`);
       return;
     }
     
+    console.log('Location saved successfully');
     setShowLocationModal(false);
     setEditingLocation(null);
     fetchData();
@@ -1958,7 +2008,16 @@ const AdminDashboard = () => {
             {activeTab === 'locations' && (
               <>
                 <div className="flex justify-between items-center mb-6">
-                  <h2 className="text-xl font-bold">美食地圖管理</h2>
+                  <div className="flex items-center gap-4">
+                    <h2 className="text-xl font-bold">美食地圖管理</h2>
+                    <button 
+                      onClick={fetchData}
+                      className="p-2 text-stone-400 hover:text-orange-600 transition-colors"
+                      title="重新整理"
+                    >
+                      <RefreshCw className="w-4 h-4" />
+                    </button>
+                  </div>
                   <button 
                     onClick={() => { setEditingLocation(null); setShowLocationModal(true); }}
                     className="bg-stone-900 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2"
@@ -2480,28 +2539,6 @@ const AdminDashboard = () => {
                     <input 
                       value={locationAddress} 
                       onChange={(e) => setLocationAddress(e.target.value)}
-                      className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" 
-                      required 
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-stone-700 mb-2">緯度 (Latitude)</label>
-                    <input 
-                      type="number" 
-                      step="any" 
-                      value={locationLat} 
-                      onChange={(e) => setLocationLat(e.target.value)}
-                      className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" 
-                      required 
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-stone-700 mb-2">經度 (Longitude)</label>
-                    <input 
-                      type="number" 
-                      step="any" 
-                      value={locationLng} 
-                      onChange={(e) => setLocationLng(e.target.value)}
                       className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" 
                       required 
                     />
