@@ -1346,7 +1346,7 @@ const PlaceAutocomplete = ({ onPlaceSelect }: PlaceAutocompleteProps) => {
     if (!places || !inputRef.current) return;
 
     const options = {
-      fields: ['geometry', 'name', 'formatted_address', 'international_phone_number', 'rating', 'photos', 'editorial_summary', 'opening_hours', 'price_level', 'website'],
+      fields: ['geometry', 'name', 'formatted_address', 'international_phone_number', 'rating', 'photos', 'editorial_summary', 'opening_hours', 'price_level', 'website', 'url'],
     };
 
     setPlaceAutocomplete(new places.Autocomplete(inputRef.current, options));
@@ -2713,12 +2713,31 @@ const AdminDashboard = () => {
                         setLocationAvgPrice(priceMap[place.price_level] || '');
                       }
 
-                      // 連結 (優先使用 Google 提供的訂位/點餐連結，若無則使用官網)
-                      const p = place as any;
-                      if (p.reservations_uri) setLocationBookingUrl(p.reservations_uri);
-                      else if (place.website) setLocationBookingUrl(place.website);
+                      // 連結智慧識別 (優先使用 Google 提供的連結，若無則分析官網網址)
+                      const website = place.website || '';
+                      const mapsUrl = place.url || '';
+                      
+                      const isBookingSite = (url: string) => 
+                        /inline|opentable|inline\.app|inline\.me|booking|reserve|tablecheck|eztable/i.test(url);
+                      
+                      const isOrderSite = (url: string) => 
+                        /ubereats|foodpanda|oddle|inline\.app\/order|ordering|takeout|delivery/i.test(url);
 
-                      if (p.order_online_uri) setLocationOrderUrl(p.order_online_uri);
+                      // 處理訂位連結
+                      if (isBookingSite(website)) {
+                        setLocationBookingUrl(website);
+                      } else if (website) {
+                        setLocationBookingUrl(website); // 預設將官網放入訂位
+                      } else {
+                        setLocationBookingUrl(mapsUrl); // 最後備案使用 Google Maps 連結
+                      }
+
+                      // 處理線上點餐連結
+                      if (isOrderSite(website)) {
+                        setLocationOrderUrl(website);
+                      } else if (website.includes('order') || website.includes('menu')) {
+                        setLocationOrderUrl(website);
+                      }
 
                       const summary = (place as any).editorial_summary;
                       if (summary && summary.overview) setLocationDescription(summary.overview);
