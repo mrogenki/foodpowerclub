@@ -575,10 +575,14 @@ const Home = () => {
           
           <div className="grid grid-cols-2 md:grid-cols-6 gap-12 items-center opacity-60">
             {partners.map((partner) => (
-              <div key={partner.id} className="flex flex-col items-center group hover:opacity-100 transition-opacity">
+              <Link 
+                key={partner.id} 
+                to={`/partner/${partner.id}`}
+                className="flex flex-col items-center group hover:opacity-100 transition-opacity"
+              >
                 <img src={partner.logo_url} className="w-16 h-16 object-contain mb-4 grayscale group-hover:grayscale-0 transition-all" alt={partner.name} />
-                <span className="text-[10px] uppercase tracking-widest font-bold text-stone-400">{partner.name}</span>
-              </div>
+                <span className="text-[10px] uppercase tracking-widest font-bold text-stone-400 group-hover:text-orange-600 transition-colors">{partner.name}</span>
+              </Link>
             ))}
           </div>
           
@@ -738,11 +742,15 @@ const EventDetail = () => {
               <h2 className="text-2xl font-bold mb-8 border-l-4 border-orange-600 pl-4">參與品牌</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
                 {brands.map(brand => (
-                  <div key={brand.id} className="group border border-stone-100 rounded-3xl p-6 hover:shadow-lg transition-all bg-white">
+                  <Link 
+                    key={brand.id} 
+                    to={`/brand/${brand.id}`}
+                    className="group border border-stone-100 rounded-3xl p-6 hover:shadow-lg transition-all bg-white block"
+                  >
                     <div className="flex items-center gap-4 mb-4">
                       <img src={brand.logo_url} className="w-16 h-16 rounded-2xl object-cover bg-stone-50" alt={brand.name} />
                       <div>
-                        <h3 className="font-bold text-lg">{brand.name}</h3>
+                        <h3 className="font-bold text-lg group-hover:text-orange-600 transition-colors">{brand.name}</h3>
                         <span className="text-[10px] uppercase tracking-wider text-orange-600 font-bold">{brand.category}</span>
                       </div>
                     </div>
@@ -751,7 +759,7 @@ const EventDetail = () => {
                       <p className="text-orange-800 font-bold mb-1">專屬優惠</p>
                       <p className="text-orange-600">{brand.promotion_info}</p>
                     </div>
-                  </div>
+                  </Link>
                 ))}
               </div>
             </section>
@@ -763,13 +771,17 @@ const EventDetail = () => {
               <h2 className="text-2xl font-bold mb-8 border-l-4 border-orange-600 pl-4">贊助夥伴</h2>
               <div className="space-y-4">
                 {partners.map(partner => (
-                  <div key={partner.id} className="flex items-center gap-4 p-4 bg-stone-50 rounded-2xl hover:bg-stone-100 transition-colors">
+                  <Link 
+                    key={partner.id} 
+                    to={`/partner/${partner.id}`}
+                    className="flex items-center gap-4 p-4 bg-stone-50 rounded-2xl hover:bg-stone-100 transition-colors group"
+                  >
                     <img src={partner.logo_url} className="w-12 h-12 rounded-xl object-cover shadow-sm" alt={partner.name} />
                     <div>
-                      <h4 className="font-bold text-sm text-stone-800">{partner.name}</h4>
+                      <h4 className="font-bold text-sm text-stone-800 group-hover:text-orange-600 transition-colors">{partner.name}</h4>
                       <p className="text-[10px] uppercase tracking-widest text-stone-400 font-bold">{partner.type}</p>
                     </div>
-                  </div>
+                  </Link>
                 ))}
               </div>
             </section>
@@ -782,6 +794,159 @@ const EventDetail = () => {
               </Link>
             </section>
           </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const BrandDetail = () => {
+  const { id } = useParams();
+  const [brand, setBrand] = useState<Brand | null>(null);
+  const [promotions, setPromotions] = useState<Promotion[]>([]);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!id) return;
+      const { data: brandData } = await supabase.from('brands').select('*').eq('id', id).single();
+      const { data: promoData } = await supabase.from('promotions').select('*').eq('brand_id', id).eq('is_active', true);
+      
+      if (brandData) setBrand(brandData);
+      if (promoData) setPromotions(promoData);
+    };
+    fetchData();
+    window.scrollTo(0, 0);
+  }, [id]);
+
+  if (!brand) return <div className="pt-32 text-center">載入中...</div>;
+
+  return (
+    <div className="pt-24 bg-stone-50 min-h-screen">
+      <div className="max-w-4xl mx-auto px-4 py-12">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-white rounded-[40px] shadow-sm border border-stone-100 overflow-hidden"
+        >
+          {/* Brand Header */}
+          <div className="p-8 md:p-12 border-b border-stone-50 bg-gradient-to-br from-white to-stone-50">
+            <div className="flex flex-col md:flex-row items-center gap-8">
+              <img src={brand.logo_url} className="w-32 h-32 rounded-3xl object-cover shadow-xl border-4 border-white" alt={brand.name} />
+              <div className="text-center md:text-left">
+                <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 mb-4">
+                  <span className="px-4 py-1 bg-orange-100 text-orange-600 rounded-full text-xs font-bold uppercase tracking-widest">
+                    {brand.category}
+                  </span>
+                </div>
+                <h1 className="text-4xl font-bold text-stone-900 mb-4">{brand.name}</h1>
+                <p className="text-stone-500 text-lg leading-relaxed max-w-2xl">
+                  {brand.description}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Brand Content */}
+          <div className="p-8 md:p-12">
+            <div className="prose prose-stone max-w-none">
+              <h2 className="text-2xl font-bold mb-8 border-l-4 border-orange-600 pl-4">品牌介紹</h2>
+              <div className="bg-white rounded-2xl">
+                <BlockRenderer content={brand.content || brand.description} />
+              </div>
+            </div>
+
+            {/* Promotions */}
+            {promotions.length > 0 && (
+              <div className="mt-16">
+                <h2 className="text-2xl font-bold mb-8 border-l-4 border-orange-600 pl-4">專屬優惠</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {promotions.map(promo => (
+                    <div key={promo.id} className="bg-orange-50 p-6 rounded-3xl border border-orange-100">
+                      <h3 className="font-bold text-orange-900 mb-2">{promo.title}</h3>
+                      <p className="text-orange-700 text-sm mb-4">{promo.description}</p>
+                      {promo.discount_code && (
+                        <div className="bg-white px-4 py-2 rounded-xl font-mono text-center font-bold text-orange-600 border border-orange-200">
+                          CODE: {promo.discount_code}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </motion.div>
+        
+        <div className="mt-12 text-center">
+          <button 
+            onClick={() => window.history.back()}
+            className="text-stone-400 hover:text-orange-600 font-bold transition-colors flex items-center gap-2 mx-auto"
+          >
+            <ChevronRight className="w-4 h-4 rotate-180" /> 返回上一頁
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const PartnerDetail = () => {
+  const { id } = useParams();
+  const [partner, setPartner] = useState<Partner | null>(null);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!id) return;
+      const { data: partnerData } = await supabase.from('partners').select('*').eq('id', id).single();
+      if (partnerData) setPartner(partnerData);
+    };
+    fetchData();
+    window.scrollTo(0, 0);
+  }, [id]);
+
+  if (!partner) return <div className="pt-32 text-center">載入中...</div>;
+
+  return (
+    <div className="pt-24 bg-stone-50 min-h-screen">
+      <div className="max-w-4xl mx-auto px-4 py-12">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-white rounded-[40px] shadow-sm border border-stone-100 overflow-hidden"
+        >
+          {/* Partner Header */}
+          <div className="p-8 md:p-12 border-b border-stone-50 bg-gradient-to-br from-white to-stone-50">
+            <div className="flex flex-col md:flex-row items-center gap-8">
+              <img src={partner.logo_url} className="w-32 h-32 rounded-3xl object-cover shadow-xl border-4 border-white" alt={partner.name} />
+              <div className="text-center md:text-left">
+                <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 mb-4">
+                  <span className="px-4 py-1 bg-stone-100 text-stone-600 rounded-full text-xs font-bold uppercase tracking-widest">
+                    {partner.type}
+                  </span>
+                </div>
+                <h1 className="text-4xl font-bold text-stone-900 mb-4">{partner.name}</h1>
+              </div>
+            </div>
+          </div>
+
+          {/* Partner Content */}
+          <div className="p-8 md:p-12">
+            <div className="prose prose-stone max-w-none">
+              <h2 className="text-2xl font-bold mb-8 border-l-4 border-orange-600 pl-4">合作夥伴介紹</h2>
+              <div className="bg-white rounded-2xl">
+                <BlockRenderer content={partner.content || "暫無詳細介紹"} />
+              </div>
+            </div>
+          </div>
+        </motion.div>
+        
+        <div className="mt-12 text-center">
+          <button 
+            onClick={() => window.history.back()}
+            className="text-stone-400 hover:text-orange-600 font-bold transition-colors flex items-center gap-2 mx-auto"
+          >
+            <ChevronRight className="w-4 h-4 rotate-180" /> 返回上一頁
+          </button>
         </div>
       </div>
     </div>
@@ -1350,14 +1515,22 @@ const PartnersPage = () => {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {partners.length > 0 ? partners.map((partner) => (
-            <div key={partner.id} className="bg-white p-8 rounded-3xl border border-stone-100 shadow-sm hover:shadow-md transition-all">
+            <Link 
+              key={partner.id} 
+              to={`/partner/${partner.id}`}
+              className="bg-white p-8 rounded-3xl border border-stone-100 shadow-sm hover:shadow-md transition-all group block"
+            >
               <img src={partner.logo_url} className="w-20 h-20 rounded-2xl object-cover mb-6 bg-stone-50" alt={partner.name} />
-              <h3 className="text-xl font-bold mb-2">{partner.name}</h3>
+              <h3 className="text-xl font-bold mb-2 group-hover:text-orange-600 transition-colors">{partner.name}</h3>
               <p className="text-orange-600 text-sm font-medium mb-4">{partner.type}</p>
-              <div className="text-stone-500 text-sm leading-relaxed">
+              <div className="text-stone-500 text-sm leading-relaxed line-clamp-3">
                 <BlockRenderer content={partner.content} />
               </div>
-            </div>
+              <div className="mt-6 pt-6 border-t border-stone-50 flex items-center justify-between">
+                <span className="text-stone-400 text-xs font-medium">查看完整介紹</span>
+                <ChevronRight className="w-4 h-4 text-orange-600 group-hover:translate-x-1 transition-transform" />
+              </div>
+            </Link>
           )) : (
             <div className="col-span-3 text-center py-20 text-stone-400">
               目前尚無贊助夥伴資料
@@ -1527,7 +1700,7 @@ const PlaceAutocomplete = ({ onPlaceSelect }: PlaceAutocompleteProps) => {
     if (!places || !inputRef.current) return;
 
     const options = {
-      fields: ['geometry', 'name', 'formatted_address', 'international_phone_number', 'rating', 'photos', 'editorial_summary', 'opening_hours', 'price_level', 'website', 'url'],
+      fields: ['geometry', 'name', 'formatted_address', 'address_components', 'international_phone_number', 'rating', 'photos', 'editorial_summary', 'opening_hours', 'price_level', 'website', 'url'],
     };
 
     setPlaceAutocomplete(new places.Autocomplete(inputRef.current, options));
@@ -2896,36 +3069,51 @@ const AdminDashboard = () => {
                       if (place.international_phone_number) setLocationPhone(place.international_phone_number);
                       if (place.rating) setLocationRating(place.rating);
                       
-                      // 解析縣市與行政區
-                      if (place.address_components) {
+                      // 解析縣市與行政區 (直接從 Google 資料截取)
+                      if (place.address_components || place.formatted_address) {
+                        const address = place.formatted_address || '';
                         let city = '';
                         let district = '';
                         
-                        // 尋找縣市 (administrative_area_level_1)
-                        const cityComp = place.address_components.find(c => 
-                          c.types.includes('administrative_area_level_1')
-                        );
-                        if (cityComp) city = cityComp.long_name;
-                        
-                        // 尋找行政區 (sublocality_level_1 或 locality)
-                        const districtComp = place.address_components.find(c => 
-                          c.types.includes('sublocality_level_1') || 
-                          (city && c.types.includes('locality') && c.long_name !== city)
-                        );
-                        if (districtComp) district = districtComp.long_name;
+                        // 1. 優先從結構化組件中抓取
+                        if (place.address_components) {
+                          const components = place.address_components;
+                          const cityComp = components.find(c => c.types.includes('administrative_area_level_1'));
+                          const distComp = components.find(c => c.types.includes('sublocality_level_1') || c.types.includes('locality'));
+                          
+                          if (cityComp) city = cityComp.long_name;
+                          if (distComp && distComp.long_name !== city) district = distComp.long_name;
+                        }
+
+                        // 2. 備案：從完整地址字串截取 (正則匹配)
+                        if (!city || !district) {
+                          const match = address.match(/(?:台灣)?(.*?市|.*?縣)(.*?區|.*?鄉|.*?鎮|.*?市)/);
+                          if (match) {
+                            if (!city) city = match[1];
+                            if (!district) district = match[2];
+                          }
+                        }
                         
                         // 統一格式 (台 -> 臺)
                         city = city.replace(/台/g, '臺');
                         district = district.replace(/台/g, '臺');
                         
-                        // 驗證是否在我們的資料庫中
-                        if (city && TAIWAN_DISTRICTS[city]) {
-                          setLocationCity(city);
-                          if (district && TAIWAN_DISTRICTS[city].includes(district)) {
-                            setLocationDistrict(district);
-                          } else {
-                            setLocationDistrict('全部');
-                          }
+                        // 匹配資料庫中的縣市
+                        const matchedCityKey = Object.keys(TAIWAN_DISTRICTS).find(k => 
+                          city.includes(k.replace(/[市縣]/g, '')) || address.includes(k)
+                        );
+
+                        if (matchedCityKey) {
+                          setLocationCity(matchedCityKey);
+                          
+                          // 匹配資料庫中的行政區
+                          const matchedDist = TAIWAN_DISTRICTS[matchedCityKey].find(d => 
+                            district.includes(d.replace(/[區鄉鎮市]/g, '')) || address.includes(d)
+                          );
+                          
+                          setLocationDistrict(matchedDist || '全部');
+                        } else {
+                          console.log('無法匹配縣市:', city);
                         }
                       }
 
@@ -3239,7 +3427,7 @@ export default function App() {
   }
 
   return (
-    <APIProvider apiKey={GOOGLE_MAPS_API_KEY}>
+    <APIProvider apiKey={GOOGLE_MAPS_API_KEY} language="zh-TW">
       <Router>
         <div className="min-h-screen bg-white font-sans text-stone-900">
           <Navbar />
@@ -3247,6 +3435,8 @@ export default function App() {
             <Route path="/" element={<Home />} />
             <Route path="/events" element={<EventsPage />} />
             <Route path="/event/:id" element={<EventDetail />} />
+            <Route path="/brand/:id" element={<BrandDetail />} />
+            <Route path="/partner/:id" element={<PartnerDetail />} />
             <Route path="/promotions" element={<PromotionsPage />} />
             <Route path="/reviews" element={<KOLReviewsPage />} />
             <Route path="/map" element={<MapPage />} />

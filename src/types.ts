@@ -20,6 +20,7 @@ export interface Brand {
   logo_url: string;
   promotion_info: string;
   category: string;
+  content?: string;
   created_at: string;
 }
 
