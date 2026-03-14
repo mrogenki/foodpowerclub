@@ -920,6 +920,7 @@ const MapPage = () => {
             defaultZoom={14}
             gestureHandling={'greedy'}
             disableDefaultUI={false}
+            mapId={import.meta.env.VITE_GOOGLE_MAPS_MAP_ID || 'DEMO_MAP_ID'}
           >
             {filteredLocations.map((loc) => (
               <AdvancedMarker
