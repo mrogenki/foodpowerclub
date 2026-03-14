@@ -27,6 +27,7 @@ import {
   Search,
   RefreshCw,
   Clock,
+  AlertCircle,
   DollarSign,
   CalendarCheck,
   ShoppingBag
@@ -887,9 +888,13 @@ const Login = () => {
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || 'AIzaSyC6Fvho40AkRKwXx2wueWdPU3bzN7ZY6a0';
 const GOOGLE_MAPS_MAP_ID = import.meta.env.VITE_GOOGLE_MAPS_MAP_ID || 'DEMO_MAP_ID';
 
+import { TAIWAN_DISTRICTS } from './constants/taiwanDistricts';
+
 const MapPage = () => {
   const [selectedShop, setSelectedShop] = useState<Location | null>(null);
   const [activeCategory, setActiveCategory] = useState<string>('全部');
+  const [activeCity, setActiveCity] = useState<string>('全部');
+  const [activeDistrict, setActiveDistrict] = useState<string>('全部');
   const [locations, setLocations] = useState<Location[]>([]);
 
   useEffect(() => {
@@ -918,19 +923,42 @@ const MapPage = () => {
     '手搖': 'Drink'
   };
 
-  const filteredLocations = activeCategory === '全部' 
-    ? locations 
-    : locations.filter(loc => loc.category === categoryMap[activeCategory]);
+  const cities = ['全部', ...Object.keys(TAIWAN_DISTRICTS)];
+  const districts = activeCity === '全部' ? [] : ['全部', ...(TAIWAN_DISTRICTS[activeCity] || [])];
+
+  const filteredLocations = locations.filter(loc => {
+    const matchCategory = activeCategory === '全部' || loc.category === categoryMap[activeCategory];
+    
+    // Robust city matching (handling 台/臺 and transition from region)
+    const normalize = (s: string | undefined) => s?.replace(/台/g, '臺') || '';
+    const targetCity = normalize(activeCity);
+    const locCity = normalize(loc.city);
+    const locRegion = normalize(loc.region);
+    
+    const matchCity = activeCity === '全部' || 
+                     locCity === targetCity || 
+                     (locCity === '' && locRegion.includes(targetCity.replace('市', '').replace('縣', '')));
+
+    // District matching
+    const matchDistrict = activeDistrict === '全部' || loc.district === activeDistrict;
+    
+    return matchCategory && matchCity && matchDistrict;
+  });
+
+  useEffect(() => {
+    console.log('Filter changed:', { activeCategory, activeCity, activeDistrict });
+    console.log('Filtered count:', filteredLocations.length);
+  }, [activeCategory, activeCity, activeDistrict, filteredLocations.length]);
 
   const categories = ['全部', '燒肉', '火鍋', '便當', '手搖'];
 
   return (
-    <div className="pt-24 min-h-screen bg-stone-50">
+    <div className="pt-24 min-h-screen bg-stone-50 pb-20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="mb-12 flex justify-between items-end">
+        <div className="mb-12 flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
           <div>
             <h1 className="text-4xl font-bold text-stone-900 mb-4">美食地圖</h1>
-            <p className="text-stone-500">探索活動周邊的精選美食店家（點擊分類進行篩選）</p>
+            <p className="text-stone-500">探索活動周邊的精選美食店家（點擊分類與行政區進行篩選）</p>
           </div>
           <button 
             onClick={handleRefresh}
@@ -940,7 +968,7 @@ const MapPage = () => {
           </button>
         </div>
         
-        <div className="relative h-[700px] bg-white rounded-3xl shadow-sm border border-stone-200 overflow-hidden">
+        <div className="relative h-[600px] bg-white rounded-3xl shadow-sm border border-stone-200 overflow-hidden mb-8">
           {/* Full Background Map */}
           <div className="absolute inset-0 z-0">
             <Map
@@ -995,7 +1023,7 @@ const MapPage = () => {
                   >
                     <X className="w-4 h-4" />
                   </button>
-                  <div className="absolute bottom-3 left-3">
+                  <div className="absolute bottom-3 left-3 flex gap-2">
                     <span className={cn(
                       "px-3 py-1 rounded-full text-xs font-bold text-white shadow-sm",
                       selectedShop.category === 'BBQ' ? "bg-orange-600" : 
@@ -1006,6 +1034,9 @@ const MapPage = () => {
                        selectedShop.category === 'Hotpot' ? '火鍋' : 
                        selectedShop.category === 'Bento' ? '便當' : 
                        selectedShop.category === 'Drink' ? '手搖' : selectedShop.category}
+                    </span>
+                    <span className="px-3 py-1 bg-white/90 backdrop-blur-md rounded-full text-xs font-bold text-stone-600 shadow-sm">
+                      {selectedShop.city}{selectedShop.district}
                     </span>
                   </div>
                 </div>
@@ -1082,7 +1113,7 @@ const MapPage = () => {
                       <div className="bg-gradient-to-br from-orange-50 to-orange-100/50 rounded-2xl p-4 border border-orange-100">
                         <div className="flex items-center gap-2 text-orange-700 font-bold text-sm mb-1">
                           <Tag className="w-4 h-4" /> 祭典專屬折扣
-                        </div>
+                         </div>
                         <p className="text-xs text-orange-600 leading-relaxed">{selectedShop.discount_info}</p>
                       </div>
                     </div>
@@ -1120,28 +1151,178 @@ const MapPage = () => {
           </AnimatePresence>
         </div>
 
-        <div className="mt-12 grid grid-cols-2 md:grid-cols-5 gap-4">
-          {categories.map((cat) => (
-            <button 
-              key={cat} 
-              onClick={() => setActiveCategory(cat)}
-              className={cn(
-                "p-4 rounded-2xl border transition-all text-center flex flex-col items-center justify-center gap-2",
-                activeCategory === cat 
-                  ? "bg-orange-600 border-orange-600 text-white shadow-lg scale-105" 
-                  : "bg-white border-stone-100 text-stone-700 hover:border-orange-200 hover:shadow-md"
-              )}
-            >
-              <span className="text-2xl">
-                {cat === '全部' && '🍴'}
-                {cat === '燒肉' && '🔥'}
-                {cat === '火鍋' && '🍲'}
-                {cat === '便當' && '🍱'}
-                {cat === '手搖' && '🧋'}
-              </span>
-              <span className="font-bold text-sm">{cat}</span>
-            </button>
-          ))}
+        {/* Filters */}
+        <div className="space-y-6 mb-12">
+          {/* Category Filter */}
+          <div>
+            <h4 className="text-xs font-bold text-stone-400 uppercase tracking-widest mb-4">種類篩選</h4>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              {categories.map((cat) => (
+                <button 
+                  key={cat} 
+                  onClick={() => setActiveCategory(cat)}
+                  className={cn(
+                    "p-4 rounded-2xl border transition-all text-center flex flex-col items-center justify-center gap-2",
+                    activeCategory === cat 
+                      ? "bg-orange-600 border-orange-600 text-white shadow-lg scale-105" 
+                      : "bg-white border-stone-100 text-stone-700 hover:border-orange-200 hover:shadow-md"
+                  )}
+                >
+                  <span className="text-2xl">
+                    {cat === '全部' && '🍴'}
+                    {cat === '燒肉' && '🔥'}
+                    {cat === '火鍋' && '🍲'}
+                    {cat === '便當' && '🍱'}
+                    {cat === '手搖' && '🧋'}
+                  </span>
+                  <span className="font-bold text-sm">{cat}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Region Filter */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div>
+              <h4 className="text-xs font-bold text-stone-400 uppercase tracking-widest mb-4">縣市篩選</h4>
+              <div className="flex flex-wrap gap-2">
+                {cities.map((city) => (
+                  <button
+                    key={city}
+                    onClick={() => {
+                      setActiveCity(city);
+                      setActiveDistrict('全部');
+                    }}
+                    className={cn(
+                      "px-4 py-1.5 rounded-full border text-xs font-bold transition-all",
+                      activeCity === city
+                        ? "bg-stone-900 border-stone-900 text-white shadow-md"
+                        : "bg-white border-stone-200 text-stone-600 hover:border-stone-400"
+                    )}
+                  >
+                    {city}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {activeCity !== '全部' && (
+              <motion.div
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+              >
+                <h4 className="text-xs font-bold text-stone-400 uppercase tracking-widest mb-4">{activeCity} 行政區</h4>
+                <div className="flex flex-wrap gap-2">
+                  {districts.map((dist) => (
+                    <button
+                      key={dist}
+                      onClick={() => setActiveDistrict(dist)}
+                      className={cn(
+                        "px-4 py-1.5 rounded-full border text-xs font-bold transition-all",
+                        activeDistrict === dist
+                          ? "bg-orange-600 border-orange-600 text-white shadow-md"
+                          : "bg-white border-stone-200 text-stone-600 hover:border-orange-400"
+                      )}
+                    >
+                      {dist}
+                    </button>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </div>
+        </div>
+
+        {/* Shop List */}
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <h3 className="text-2xl font-bold text-stone-900">店家清單 ({filteredLocations.length})</h3>
+            <div className="text-sm text-stone-500">
+              顯示：{activeCategory} • {activeCity}{activeDistrict !== '全部' ? ` • ${activeDistrict}` : ''}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredLocations.map((loc) => (
+              <motion.div
+                key={loc.id}
+                layout
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-white rounded-3xl border border-stone-100 overflow-hidden shadow-sm hover:shadow-md transition-all group cursor-pointer"
+                onClick={() => {
+                  setSelectedShop(loc);
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+              >
+                <div className="relative h-48 overflow-hidden">
+                  {loc.image_url ? (
+                    <img 
+                      src={loc.image_url} 
+                      alt={loc.name}
+                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-stone-50 flex items-center justify-center text-stone-200">
+                      <ImageIcon className="w-12 h-12" />
+                    </div>
+                  )}
+                  <div className="absolute top-4 left-4">
+                    <span className={cn(
+                      "px-3 py-1 rounded-full text-[10px] font-bold text-white shadow-lg",
+                      loc.category === 'BBQ' ? "bg-orange-600" : 
+                      loc.category === 'Hotpot' ? "bg-red-600" : 
+                      loc.category === 'Bento' ? "bg-emerald-600" : "bg-blue-600"
+                    )}>
+                      {loc.category === 'BBQ' ? '燒肉' : 
+                       loc.category === 'Hotpot' ? '火鍋' : 
+                       loc.category === 'Bento' ? '便當' : 
+                       loc.category === 'Drink' ? '手搖' : loc.category}
+                    </span>
+                  </div>
+                  <div className="absolute top-4 right-4">
+                    <span className="px-3 py-1 bg-white/90 backdrop-blur-md rounded-full text-[10px] font-bold text-stone-600 shadow-sm">
+                      {loc.city}{loc.district}
+                    </span>
+                  </div>
+                </div>
+                <div className="p-6">
+                  <div className="flex justify-between items-start mb-2">
+                    <h4 className="text-lg font-bold text-stone-900 group-hover:text-orange-600 transition-colors">{loc.name}</h4>
+                    <div className="flex items-center gap-1 text-orange-500">
+                      <Star className="w-3 h-3 fill-current" />
+                      <span className="text-xs font-bold">{(loc.rating || 5).toFixed(1)}</span>
+                    </div>
+                  </div>
+                  <p className="text-xs text-stone-500 flex items-center gap-1 mb-4">
+                    <MapPin className="w-3 h-3" /> {loc.address}
+                  </p>
+                  <div className="flex items-center justify-between pt-4 border-t border-stone-50">
+                    <span className="text-xs font-medium text-stone-400">{loc.avg_price || '價格未提供'}</span>
+                    <span className="text-orange-600 text-xs font-bold inline-flex items-center gap-1">
+                      查看詳情 <ChevronRight className="w-3 h-3" />
+                    </span>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+
+          {filteredLocations.length === 0 && (
+            <div className="py-20 text-center bg-white rounded-3xl border border-dashed border-stone-200">
+              <div className="text-4xl mb-4">🔍</div>
+              <h4 className="text-lg font-bold text-stone-900 mb-2">找不到符合條件的店家</h4>
+              <p className="text-stone-500 text-sm mb-1">試試看其他的分類或區域組合吧！</p>
+              <p className="text-stone-400 text-xs">提示：若您是管理員，請確保已在後台更新店家的「縣市」與「行政區」資訊。</p>
+              <button 
+                onClick={() => { setActiveCategory('全部'); setActiveCity('全部'); setActiveDistrict('全部'); }}
+                className="mt-6 px-6 py-2 bg-stone-900 text-white rounded-xl text-sm font-bold hover:bg-stone-800 transition-all"
+              >
+                重設所有篩選
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -1405,6 +1586,8 @@ const AdminDashboard = () => {
   const [locationLat, setLocationLat] = useState<number | string>('');
   const [locationLng, setLocationLng] = useState<number | string>('');
   const [locationCategory, setLocationCategory] = useState<'BBQ' | 'Hotpot' | 'Bento' | 'Drink'>('BBQ');
+  const [locationCity, setLocationCity] = useState('');
+  const [locationDistrict, setLocationDistrict] = useState('');
   const [locationPhone, setLocationPhone] = useState('');
   const [locationImageUrl, setLocationImageUrl] = useState('');
   const [locationDescription, setLocationDescription] = useState('');
@@ -1460,6 +1643,8 @@ const AdminDashboard = () => {
       setLocationLat(editingLocation.lat);
       setLocationLng(editingLocation.lng);
       setLocationCategory(editingLocation.category);
+      setLocationCity(editingLocation.city || '');
+      setLocationDistrict(editingLocation.district || '');
       setLocationPhone(editingLocation.phone || '');
       setLocationImageUrl(editingLocation.image_url || '');
       setLocationDescription(editingLocation.description || '');
@@ -1479,6 +1664,8 @@ const AdminDashboard = () => {
       setLocationLat('');
       setLocationLng('');
       setLocationCategory('BBQ');
+      setLocationCity('');
+      setLocationDistrict('');
       setLocationPhone('');
       setLocationImageUrl('');
       setLocationDescription('');
@@ -1764,6 +1951,8 @@ const AdminDashboard = () => {
     const locationData = {
       name: locationName,
       category: locationCategory,
+      city: locationCity,
+      district: locationDistrict,
       address: locationAddress,
       lat: lat,
       lng: lng,
@@ -2219,6 +2408,7 @@ const AdminDashboard = () => {
                       <tr className="border-b border-stone-100 text-stone-400 text-sm">
                         <th className="pb-4 font-medium">店名</th>
                         <th className="pb-4 font-medium">類型</th>
+                        <th className="pb-4 font-medium">縣市/行政區</th>
                         <th className="pb-4 font-medium">地址</th>
                         <th className="pb-4 font-medium text-right">操作</th>
                       </tr>
@@ -2234,6 +2424,15 @@ const AdminDashboard = () => {
                                loc.category === 'Bento' ? '便當' : 
                                loc.category === 'Drink' ? '手搖' : loc.category}
                             </span>
+                          </td>
+                          <td className="py-4 text-sm">
+                            {loc.city ? (
+                              <span className="text-stone-700">{loc.city}{loc.district}</span>
+                            ) : (
+                              <span className="text-red-500 font-medium flex items-center gap-1">
+                                <AlertCircle className="w-3 h-3" /> 待更新
+                              </span>
+                            )}
                           </td>
                           <td className="py-4 text-sm text-stone-500">{loc.address}</td>
                           <td className="py-4 text-right">
@@ -2697,6 +2896,39 @@ const AdminDashboard = () => {
                       if (place.international_phone_number) setLocationPhone(place.international_phone_number);
                       if (place.rating) setLocationRating(place.rating);
                       
+                      // 解析縣市與行政區
+                      if (place.address_components) {
+                        let city = '';
+                        let district = '';
+                        
+                        // 尋找縣市 (administrative_area_level_1)
+                        const cityComp = place.address_components.find(c => 
+                          c.types.includes('administrative_area_level_1')
+                        );
+                        if (cityComp) city = cityComp.long_name;
+                        
+                        // 尋找行政區 (sublocality_level_1 或 locality)
+                        const districtComp = place.address_components.find(c => 
+                          c.types.includes('sublocality_level_1') || 
+                          (city && c.types.includes('locality') && c.long_name !== city)
+                        );
+                        if (districtComp) district = districtComp.long_name;
+                        
+                        // 統一格式 (台 -> 臺)
+                        city = city.replace(/台/g, '臺');
+                        district = district.replace(/台/g, '臺');
+                        
+                        // 驗證是否在我們的資料庫中
+                        if (city && TAIWAN_DISTRICTS[city]) {
+                          setLocationCity(city);
+                          if (district && TAIWAN_DISTRICTS[city].includes(district)) {
+                            setLocationDistrict(district);
+                          } else {
+                            setLocationDistrict('全部');
+                          }
+                        }
+                      }
+
                       // 營業時間
                       if (place.opening_hours?.weekday_text) {
                         // 取得今天的營業時間，或者顯示全部
@@ -2785,6 +3017,38 @@ const AdminDashboard = () => {
                       <option value="Hotpot">火鍋</option>
                       <option value="Bento">便當</option>
                       <option value="Drink">手搖</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-2">縣市</label>
+                    <select 
+                      value={locationCity} 
+                      onChange={(e) => {
+                        setLocationCity(e.target.value);
+                        setLocationDistrict('');
+                      }}
+                      className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" 
+                      required
+                    >
+                      <option value="">請選擇縣市</option>
+                      {Object.keys(TAIWAN_DISTRICTS).map(city => (
+                        <option key={city} value={city}>{city}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-2">行政區</label>
+                    <select 
+                      value={locationDistrict} 
+                      onChange={(e) => setLocationDistrict(e.target.value)}
+                      className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" 
+                      required
+                      disabled={!locationCity}
+                    >
+                      <option value="">請選擇行政區</option>
+                      {locationCity && TAIWAN_DISTRICTS[locationCity]?.map(dist => (
+                        <option key={dist} value={dist}>{dist}</option>
+                      ))}
                     </select>
                   </div>
                   <div className="col-span-2">

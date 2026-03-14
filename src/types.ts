@@ -38,6 +38,9 @@ export interface Location {
   id: string;
   name: string;
   category: 'BBQ' | 'Hotpot' | 'Bento' | 'Drink';
+  city: string;
+  district: string;
+  region?: string;
   address: string;
   lat: number;
   lng: number;
