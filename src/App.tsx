@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
+/// <reference types="@types/google.maps" />
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useNavigate, useParams } from 'react-router-dom';
 import { 
   Utensils, 
@@ -22,7 +23,8 @@ import {
   Tag,
   Ticket,
   FileText,
-  Video
+  Video,
+  Search
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import ReactMarkdown from 'react-markdown';
@@ -37,7 +39,7 @@ import { supabase } from './lib/supabase';
 import { cn } from './lib/utils';
 import type { Event, Brand, Partner, Location, Review, KOLReview, Promotion } from './types';
 
-import { APIProvider, Map, AdvancedMarker, Pin, InfoWindow } from '@vis.gl/react-google-maps';
+import { APIProvider, Map, AdvancedMarker, Pin, InfoWindow, useMapsLibrary } from '@vis.gl/react-google-maps';
 
 // --- Utilities ---
 
@@ -913,46 +915,44 @@ const MapPage = () => {
         </div>
         
         <div className="bg-white rounded-3xl p-4 shadow-sm border border-stone-200 h-[600px] relative overflow-hidden z-0">
-          <APIProvider apiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY || ''}>
-            <Map
-              defaultCenter={{ lat: 25.0422, lng: 121.5435 }}
-              defaultZoom={14}
-              gestureHandling={'greedy'}
-              disableDefaultUI={false}
-            >
-              {filteredLocations.map((loc) => (
-                <AdvancedMarker
-                  key={loc.id}
-                  position={{ lat: loc.lat, lng: loc.lng }}
-                  onClick={() => setSelectedShop(loc)}
-                >
-                  <Pin 
-                    background={loc.category === 'BBQ' ? '#ef4444' : loc.category === 'Hotpot' ? '#f97316' : loc.category === 'Drink' ? '#06b6d4' : '#ea580c'} 
-                    glyphColor={'#fff'} 
-                    borderColor={'#fff'} 
-                  />
-                </AdvancedMarker>
-              ))}
+          <Map
+            defaultCenter={{ lat: 25.0422, lng: 121.5435 }}
+            defaultZoom={14}
+            gestureHandling={'greedy'}
+            disableDefaultUI={false}
+          >
+            {filteredLocations.map((loc) => (
+              <AdvancedMarker
+                key={loc.id}
+                position={{ lat: loc.lat, lng: loc.lng }}
+                onClick={() => setSelectedShop(loc)}
+              >
+                <Pin 
+                  background={loc.category === 'BBQ' ? '#ef4444' : loc.category === 'Hotpot' ? '#f97316' : loc.category === 'Drink' ? '#06b6d4' : '#ea580c'} 
+                  glyphColor={'#fff'} 
+                  borderColor={'#fff'} 
+                />
+              </AdvancedMarker>
+            ))}
 
-              {selectedShop && (
-                <InfoWindow
-                  position={{ lat: selectedShop.lat, lng: selectedShop.lng }}
-                  onCloseClick={() => setSelectedShop(null)}
-                >
-                  <div className="p-1 max-w-[200px]">
-                    <h3 className="font-bold text-stone-900 text-sm">{selectedShop.name}</h3>
-                    <p className="text-xs text-orange-600 font-medium mb-1">
-                      {selectedShop.category === 'BBQ' ? '燒肉' : 
-                       selectedShop.category === 'Hotpot' ? '火鍋' : 
-                       selectedShop.category === 'Bento' ? '便當' : 
-                       selectedShop.category === 'Drink' ? '手搖' : selectedShop.category}
-                    </p>
-                    <p className="text-[10px] text-stone-500 leading-tight">{selectedShop.address}</p>
-                  </div>
-                </InfoWindow>
-              )}
-            </Map>
-          </APIProvider>
+            {selectedShop && (
+              <InfoWindow
+                position={{ lat: selectedShop.lat, lng: selectedShop.lng }}
+                onCloseClick={() => setSelectedShop(null)}
+              >
+                <div className="p-1 max-w-[200px]">
+                  <h3 className="font-bold text-stone-900 text-sm">{selectedShop.name}</h3>
+                  <p className="text-xs text-orange-600 font-medium mb-1">
+                    {selectedShop.category === 'BBQ' ? '燒肉' : 
+                     selectedShop.category === 'Hotpot' ? '火鍋' : 
+                     selectedShop.category === 'Bento' ? '便當' : 
+                     selectedShop.category === 'Drink' ? '手搖' : selectedShop.category}
+                  </p>
+                  <p className="text-[10px] text-stone-500 leading-tight">{selectedShop.address}</p>
+                </div>
+              </InfoWindow>
+            )}
+          </Map>
         </div>
 
         <div className="mt-12 grid grid-cols-2 md:grid-cols-5 gap-4">
@@ -1166,6 +1166,47 @@ const PromotionsPage = () => {
   );
 };
 
+// --- Place Autocomplete Component ---
+
+interface PlaceAutocompleteProps {
+  onPlaceSelect: (place: google.maps.places.PlaceResult) => void;
+}
+
+const PlaceAutocomplete = ({ onPlaceSelect }: PlaceAutocompleteProps) => {
+  const [placeAutocomplete, setPlaceAutocomplete] = useState<google.maps.places.Autocomplete | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const places = useMapsLibrary('places');
+
+  useEffect(() => {
+    if (!places || !inputRef.current) return;
+
+    const options = {
+      fields: ['geometry', 'name', 'formatted_address'],
+    };
+
+    setPlaceAutocomplete(new places.Autocomplete(inputRef.current, options));
+  }, [places]);
+
+  useEffect(() => {
+    if (!placeAutocomplete) return;
+
+    placeAutocomplete.addListener('place_changed', () => {
+      onPlaceSelect(placeAutocomplete.getPlace());
+    });
+  }, [onPlaceSelect, placeAutocomplete]);
+
+  return (
+    <div className="relative">
+      <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
+      <input
+        ref={inputRef}
+        placeholder="搜尋 Google 地圖上的店家..."
+        className="w-full pl-10 pr-4 py-3 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600"
+      />
+    </div>
+  );
+};
+
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState<'events' | 'brands' | 'partners' | 'locations' | 'kol_reviews' | 'promotions'>('events');
   const [events, setEvents] = useState<Event[]>([]);
@@ -1193,6 +1234,12 @@ const AdminDashboard = () => {
 
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [editingLocation, setEditingLocation] = useState<Location | null>(null);
+
+  const [locationName, setLocationName] = useState('');
+  const [locationAddress, setLocationAddress] = useState('');
+  const [locationLat, setLocationLat] = useState<number | string>('');
+  const [locationLng, setLocationLng] = useState<number | string>('');
+  const [locationCategory, setLocationCategory] = useState<'BBQ' | 'Hotpot' | 'Bento' | 'Drink'>('BBQ');
 
   const [imageUrl, setImageUrl] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
@@ -1233,13 +1280,24 @@ const AdminDashboard = () => {
       setAvatarUrl(editingKOL.kol_avatar_url || '');
     } else if (editingPromotion) {
       setImageUrl(editingPromotion.image_url || '');
+    } else if (editingLocation) {
+      setLocationName(editingLocation.name);
+      setLocationAddress(editingLocation.address);
+      setLocationLat(editingLocation.lat);
+      setLocationLng(editingLocation.lng);
+      setLocationCategory(editingLocation.category);
     } else {
       setEditorContent('');
       setImageUrl('');
       setAvatarUrl('');
       setLogoUrl('');
+      setLocationName('');
+      setLocationAddress('');
+      setLocationLat('');
+      setLocationLng('');
+      setLocationCategory('BBQ');
     }
-  }, [editingEvent, editingBrand, editingPartner, editingKOL, editingPromotion]);
+  }, [editingEvent, editingBrand, editingPartner, editingKOL, editingPromotion, editingLocation]);
 
   const fetchData = async () => {
     if (activeTab === 'events') {
@@ -1479,13 +1537,12 @@ const AdminDashboard = () => {
 
   const handleSaveLocation = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const formData = new FormData(e.currentTarget);
     const locationData = {
-      name: formData.get('name') as string,
-      category: formData.get('category') as any,
-      address: formData.get('address') as string,
-      lat: parseFloat(formData.get('lat') as string),
-      lng: parseFloat(formData.get('lng') as string),
+      name: locationName,
+      category: locationCategory,
+      address: locationAddress,
+      lat: typeof locationLat === 'string' ? parseFloat(locationLat) : locationLat,
+      lng: typeof locationLng === 'string' ? parseFloat(locationLng) : locationLng,
     };
 
     let error;
@@ -2372,14 +2429,42 @@ const AdminDashboard = () => {
                 </button>
               </div>
               <form onSubmit={handleSaveLocation} className="p-8 space-y-6 max-h-[70vh] overflow-y-auto">
+                <div className="space-y-4">
+                  <label className="block text-sm font-medium text-stone-700">從 Google 地圖搜尋</label>
+                  <PlaceAutocomplete 
+                    onPlaceSelect={(place) => {
+                      if (place.name) setLocationName(place.name);
+                      if (place.formatted_address) setLocationAddress(place.formatted_address);
+                      if (place.geometry?.location) {
+                        setLocationLat(place.geometry.location.lat());
+                        setLocationLng(place.geometry.location.lng());
+                      }
+                    }} 
+                  />
+                  <div className="flex items-center gap-2 text-xs text-stone-400">
+                    <Info className="w-3 h-3" />
+                    <span>搜尋後會自動帶入店名、地址與座標</span>
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-2 gap-6">
                   <div className="col-span-2">
                     <label className="block text-sm font-medium text-stone-700 mb-2">店名</label>
-                    <input name="name" defaultValue={editingLocation?.name} className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" required />
+                    <input 
+                      value={locationName} 
+                      onChange={(e) => setLocationName(e.target.value)}
+                      className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" 
+                      required 
+                    />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-stone-700 mb-2">類型</label>
-                    <select name="category" defaultValue={editingLocation?.category} className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" required>
+                    <select 
+                      value={locationCategory} 
+                      onChange={(e) => setLocationCategory(e.target.value as any)}
+                      className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" 
+                      required
+                    >
                       <option value="BBQ">燒肉</option>
                       <option value="Hotpot">火鍋</option>
                       <option value="Bento">便當</option>
@@ -2388,15 +2473,34 @@ const AdminDashboard = () => {
                   </div>
                   <div className="col-span-2">
                     <label className="block text-sm font-medium text-stone-700 mb-2">地址</label>
-                    <input name="address" defaultValue={editingLocation?.address} className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" required />
+                    <input 
+                      value={locationAddress} 
+                      onChange={(e) => setLocationAddress(e.target.value)}
+                      className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" 
+                      required 
+                    />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-stone-700 mb-2">緯度 (Latitude)</label>
-                    <input type="number" step="any" name="lat" defaultValue={editingLocation?.lat} className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" required />
+                    <input 
+                      type="number" 
+                      step="any" 
+                      value={locationLat} 
+                      onChange={(e) => setLocationLat(e.target.value)}
+                      className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" 
+                      required 
+                    />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-stone-700 mb-2">經度 (Longitude)</label>
-                    <input type="number" step="any" name="lng" defaultValue={editingLocation?.lng} className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" required />
+                    <input 
+                      type="number" 
+                      step="any" 
+                      value={locationLng} 
+                      onChange={(e) => setLocationLng(e.target.value)}
+                      className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" 
+                      required 
+                    />
                   </div>
                 </div>
                 <div className="pt-6 flex gap-4">
@@ -2416,32 +2520,34 @@ const AdminDashboard = () => {
 
 export default function App() {
   return (
-    <Router>
-      <div className="min-h-screen bg-white font-sans text-stone-900">
-        <Navbar />
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/events" element={<EventsPage />} />
-          <Route path="/event/:id" element={<EventDetail />} />
-          <Route path="/promotions" element={<PromotionsPage />} />
-          <Route path="/reviews" element={<KOLReviewsPage />} />
-          <Route path="/map" element={<MapPage />} />
-          <Route path="/partners" element={<PartnersPage />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/admin" element={<AdminDashboard />} />
-        </Routes>
-        
-        <footer className="bg-stone-900 text-white py-12 mt-24">
-          <div className="max-w-7xl mx-auto px-4 text-center">
-            <div className="flex items-center justify-center gap-2 mb-6">
-              <Utensils className="w-6 h-6 text-orange-600" />
-              <span className="font-bold text-lg">食在力量美食祭</span>
+    <APIProvider apiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY || ''}>
+      <Router>
+        <div className="min-h-screen bg-white font-sans text-stone-900">
+          <Navbar />
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/events" element={<EventsPage />} />
+            <Route path="/event/:id" element={<EventDetail />} />
+            <Route path="/promotions" element={<PromotionsPage />} />
+            <Route path="/reviews" element={<KOLReviewsPage />} />
+            <Route path="/map" element={<MapPage />} />
+            <Route path="/partners" element={<PartnersPage />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/admin" element={<AdminDashboard />} />
+          </Routes>
+          
+          <footer className="bg-stone-900 text-white py-12 mt-24">
+            <div className="max-w-7xl mx-auto px-4 text-center">
+              <div className="flex items-center justify-center gap-2 mb-6">
+                <Utensils className="w-6 h-6 text-orange-600" />
+                <span className="font-bold text-lg">食在力量美食祭</span>
+              </div>
+              <p className="text-stone-500 text-sm mb-4">© 2026 Food Power Festival. All rights reserved.</p>
+              <Link to="/login" className="text-stone-800 text-[10px] hover:text-stone-700 transition-colors opacity-20 hover:opacity-100">管理登入</Link>
             </div>
-            <p className="text-stone-500 text-sm mb-4">© 2026 Food Power Festival. All rights reserved.</p>
-            <Link to="/login" className="text-stone-800 text-[10px] hover:text-stone-700 transition-colors opacity-20 hover:opacity-100">管理登入</Link>
-          </div>
-        </footer>
-      </div>
-    </Router>
+          </footer>
+        </div>
+      </Router>
+    </APIProvider>
   );
 }
