@@ -25,7 +25,11 @@ import {
   FileText,
   Video,
   Search,
-  RefreshCw
+  RefreshCw,
+  Clock,
+  DollarSign,
+  CalendarCheck,
+  ShoppingBag
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import ReactMarkdown from 'react-markdown';
@@ -1014,6 +1018,12 @@ const MapPage = () => {
                         <Star key={i} className={cn("w-3.5 h-3.5 fill-current", i >= (selectedShop.rating || 5) && "text-stone-200 fill-none")} />
                       ))}
                       <span className="text-xs font-medium ml-1 text-stone-500">{(selectedShop.rating || 5).toFixed(1)}</span>
+                      {selectedShop.avg_price && (
+                        <>
+                          <span className="text-stone-300 mx-2">•</span>
+                          <span className="text-xs font-medium text-stone-500">{selectedShop.avg_price}</span>
+                        </>
+                      )}
                     </div>
                   </div>
 
@@ -1045,6 +1055,17 @@ const MapPage = () => {
                         </a>
                       </div>
                     )}
+
+                    {selectedShop.business_hours && (
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-stone-50 rounded-lg shrink-0">
+                          <Clock className="w-4 h-4 text-stone-500" />
+                        </div>
+                        <p className="text-sm text-stone-600 font-medium">
+                          {selectedShop.business_hours}
+                        </p>
+                      </div>
+                    )}
                   </div>
 
                   {selectedShop.description && (
@@ -1068,7 +1089,25 @@ const MapPage = () => {
                   )}
                 </div>
 
-                <div className="p-4 bg-stone-50 border-t border-stone-100 shrink-0">
+                <div className="p-4 bg-stone-50 border-t border-stone-100 shrink-0 space-y-3">
+                  <div className="flex gap-3">
+                    {selectedShop.booking_url && (
+                      <button 
+                        onClick={() => window.open(selectedShop.booking_url, '_blank')}
+                        className="flex-1 py-3 bg-white border border-stone-200 text-stone-900 rounded-xl font-bold hover:bg-stone-50 transition-all flex items-center justify-center gap-2 text-sm"
+                      >
+                        <CalendarCheck className="w-4 h-4 text-orange-600" /> 訂位
+                      </button>
+                    )}
+                    {selectedShop.order_url && (
+                      <button 
+                        onClick={() => window.open(selectedShop.order_url, '_blank')}
+                        className="flex-1 py-3 bg-white border border-stone-200 text-stone-900 rounded-xl font-bold hover:bg-stone-50 transition-all flex items-center justify-center gap-2 text-sm"
+                      >
+                        <ShoppingBag className="w-4 h-4 text-orange-600" /> 線上點餐
+                      </button>
+                    )}
+                  </div>
                   <button 
                     onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(selectedShop.name + ' ' + selectedShop.address)}`, '_blank')}
                     className="w-full py-3 bg-stone-900 text-white rounded-xl font-bold hover:bg-stone-800 transition-all shadow-lg shadow-stone-200 flex items-center justify-center gap-2 text-sm"
@@ -1371,6 +1410,10 @@ const AdminDashboard = () => {
   const [locationDescription, setLocationDescription] = useState('');
   const [locationDiscount, setLocationDiscount] = useState('');
   const [locationRating, setLocationRating] = useState(5);
+  const [locationBookingUrl, setLocationBookingUrl] = useState('');
+  const [locationOrderUrl, setLocationOrderUrl] = useState('');
+  const [locationBusinessHours, setLocationBusinessHours] = useState('');
+  const [locationAvgPrice, setLocationAvgPrice] = useState('');
 
   const [imageUrl, setImageUrl] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
@@ -1422,6 +1465,10 @@ const AdminDashboard = () => {
       setLocationDescription(editingLocation.description || '');
       setLocationDiscount(editingLocation.discount_info || '');
       setLocationRating(editingLocation.rating || 5);
+      setLocationBookingUrl(editingLocation.booking_url || '');
+      setLocationOrderUrl(editingLocation.order_url || '');
+      setLocationBusinessHours(editingLocation.business_hours || '');
+      setLocationAvgPrice(editingLocation.avg_price || '');
     } else {
       setEditorContent('');
       setImageUrl('');
@@ -1437,6 +1484,10 @@ const AdminDashboard = () => {
       setLocationDescription('');
       setLocationDiscount('');
       setLocationRating(5);
+      setLocationBookingUrl('');
+      setLocationOrderUrl('');
+      setLocationBusinessHours('');
+      setLocationAvgPrice('');
     }
   }, [editingEvent, editingBrand, editingPartner, editingKOL, editingPromotion, editingLocation]);
 
@@ -1716,6 +1767,10 @@ const AdminDashboard = () => {
       description: locationDescription,
       discount_info: locationDiscount,
       rating: locationRating,
+      booking_url: locationBookingUrl,
+      order_url: locationOrderUrl,
+      business_hours: locationBusinessHours,
+      avg_price: locationAvgPrice,
     };
 
     console.log('Saving location data:', locationData);
@@ -2628,6 +2683,39 @@ const AdminDashboard = () => {
                       // 自動帶入 Google 資訊
                       if (place.international_phone_number) setLocationPhone(place.international_phone_number);
                       if (place.rating) setLocationRating(place.rating);
+                      
+                      // 營業時間
+                      if (place.opening_hours?.weekday_text) {
+                        // 取得今天的營業時間，或者顯示全部
+                        const today = new Date().getDay();
+                        // Google 的 weekday_text 是從週一開始 [0] 是週一
+                        const dayIndex = today === 0 ? 6 : today - 1;
+                        const todayHours = place.opening_hours.weekday_text[dayIndex];
+                        if (todayHours) {
+                          const hoursOnly = todayHours.split(': ')[1];
+                          setLocationBusinessHours(hoursOnly || todayHours);
+                        }
+                      }
+
+                      // 價格等級轉換為消費金額
+                      if (place.price_level !== undefined) {
+                        const priceMap: { [key: number]: string } = {
+                          0: '免費',
+                          1: '$100 - $300',
+                          2: '$300 - $600',
+                          3: '$600 - $1200',
+                          4: '$1200+'
+                        };
+                        setLocationAvgPrice(priceMap[place.price_level] || '');
+                      }
+
+                      // 連結 (優先使用 Google 提供的訂位/點餐連結，若無則使用官網)
+                      const p = place as any;
+                      if (p.reservations_uri) setLocationBookingUrl(p.reservations_uri);
+                      else if (place.website) setLocationBookingUrl(place.website);
+
+                      if (p.order_online_uri) setLocationOrderUrl(p.order_online_uri);
+
                       const summary = (place as any).editorial_summary;
                       if (summary && summary.overview) setLocationDescription(summary.overview);
                       if (place.photos && place.photos.length > 0) {
@@ -2729,6 +2817,48 @@ const AdminDashboard = () => {
                       >
                         <ImageIcon className="w-5 h-5" />
                       </button>
+                    </div>
+                  </div>
+
+                  <div className="col-span-2 grid grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-sm font-medium text-stone-700 mb-2">營業時間</label>
+                      <input 
+                        value={locationBusinessHours} 
+                        onChange={(e) => setLocationBusinessHours(e.target.value)}
+                        placeholder="例如：11:00 - 21:00"
+                        className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" 
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-stone-700 mb-2">平均消費</label>
+                      <input 
+                        value={locationAvgPrice} 
+                        onChange={(e) => setLocationAvgPrice(e.target.value)}
+                        placeholder="例如：$600 - $800"
+                        className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" 
+                      />
+                    </div>
+                  </div>
+
+                  <div className="col-span-2 grid grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-sm font-medium text-stone-700 mb-2">訂位連結</label>
+                      <input 
+                        value={locationBookingUrl} 
+                        onChange={(e) => setLocationBookingUrl(e.target.value)}
+                        placeholder="https://inline.app/..."
+                        className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" 
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-stone-700 mb-2">線上點餐連結</label>
+                      <input 
+                        value={locationOrderUrl} 
+                        onChange={(e) => setLocationOrderUrl(e.target.value)}
+                        placeholder="https://ubereats.com/..."
+                        className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" 
+                      />
                     </div>
                   </div>
 

@@ -46,6 +46,10 @@ export interface Location {
   description?: string;
   discount_info?: string;
   rating?: number;
+  booking_url?: string;
+  order_url?: string;
+  business_hours?: string;
+  avg_price?: string;
   created_at: string;
 }
 
