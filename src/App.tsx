@@ -879,7 +879,7 @@ const Login = () => {
   );
 };
 
-const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || 'AIzaSyC6Fvho40AkRKwXx2wueWdPU3bzN7ZY6a0';
 const GOOGLE_MAPS_MAP_ID = import.meta.env.VITE_GOOGLE_MAPS_MAP_ID || 'DEMO_MAP_ID';
 
 const MapPage = () => {
@@ -2523,7 +2523,9 @@ const AdminDashboard = () => {
 // --- Main App ---
 
 export default function App() {
-  if (!GOOGLE_MAPS_API_KEY) {
+  const isVercel = window.location.hostname.includes('vercel.app');
+  
+  if (!import.meta.env.VITE_GOOGLE_MAPS_API_KEY && !GOOGLE_MAPS_API_KEY) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-stone-50 p-4">
         <div className="max-w-md w-full bg-white rounded-3xl p-8 shadow-xl border border-stone-200 text-center">
@@ -2531,9 +2533,25 @@ export default function App() {
             <Info className="w-8 h-8" />
           </div>
           <h2 className="text-2xl font-bold text-stone-900 mb-4">尚未設定 Google 地圖 API</h2>
-          <p className="text-stone-600 mb-8 leading-relaxed">
-            請在 AI Studio 的 <b>Secrets</b> 中新增環境變數 <code>VITE_GOOGLE_MAPS_API_KEY</code>，並確保該金鑰所屬的專案已啟動計費功能。
-          </p>
+          
+          {isVercel ? (
+            <div className="text-left mb-8">
+              <p className="text-stone-600 mb-4 leading-relaxed">
+                偵測到您正在使用 <b>Vercel</b> 部署。請在 Vercel 控制台設定環境變數：
+              </p>
+              <ol className="list-decimal list-inside text-sm text-stone-500 space-y-2 bg-stone-50 p-4 rounded-xl">
+                <li>前往 Vercel Project Settings</li>
+                <li>選擇 Environment Variables</li>
+                <li>新增 <code>VITE_GOOGLE_MAPS_API_KEY</code></li>
+                <li>重新部署 (Redeploy) 專案</li>
+              </ol>
+            </div>
+          ) : (
+            <p className="text-stone-600 mb-8 leading-relaxed">
+              請在 AI Studio 的 <b>Secrets</b> 中新增環境變數 <code>VITE_GOOGLE_MAPS_API_KEY</code>，並點擊 <b>Apply changes</b>。
+            </p>
+          )}
+          
           <a 
             href="https://console.cloud.google.com/google/maps-apis/credentials" 
             target="_blank" 
