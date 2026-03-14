@@ -805,6 +805,7 @@ const BrandDetail = () => {
   const [brand, setBrand] = useState<Brand | null>(null);
   const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [kolReviews, setKolReviews] = useState<KOLReview[]>([]);
+  const [selectedVideo, setSelectedVideo] = useState<KOLReview | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -884,11 +885,15 @@ const BrandDetail = () => {
                 <h2 className="text-2xl font-bold mb-8 border-l-4 border-orange-600 pl-4">開箱分享</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   {kolReviews.map(review => (
-                    <div key={review.id} className="bg-white rounded-3xl overflow-hidden shadow-sm border border-stone-100 group">
-                      <div className="relative aspect-video bg-stone-200">
+                    <div 
+                      key={review.id} 
+                      className="bg-white rounded-3xl overflow-hidden shadow-sm border border-stone-100 group cursor-pointer"
+                      onClick={() => review.media_type === 'video' && setSelectedVideo(review)}
+                    >
+                      <div className="relative aspect-video bg-stone-200 overflow-hidden">
                         {review.media_type === 'video' ? (
                           <div className="absolute inset-0 flex items-center justify-center">
-                            <img src={review.media_url} className="w-full h-full object-cover opacity-80" alt={review.title} />
+                            <img src={review.media_url} className="w-full h-full object-cover opacity-80 group-hover:scale-105 transition-transform duration-500" alt={review.title} />
                             <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition-all flex items-center justify-center">
                               <div className="w-12 h-12 bg-white/90 rounded-full flex items-center justify-center text-orange-600 shadow-xl">
                                 <Play className="w-6 h-6 fill-current" />
@@ -896,7 +901,7 @@ const BrandDetail = () => {
                             </div>
                           </div>
                         ) : (
-                          <img src={review.media_url} className="w-full h-full object-cover" alt={review.title} />
+                          <img src={review.media_url} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt={review.title} />
                         )}
                       </div>
                       <div className="p-6">
@@ -916,6 +921,54 @@ const BrandDetail = () => {
             )}
           </div>
         </motion.div>
+
+        {/* Video Modal */}
+        <AnimatePresence>
+          {selectedVideo && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-8">
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setSelectedVideo(null)}
+                className="absolute inset-0 bg-stone-900/90 backdrop-blur-md"
+              />
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                className={cn(
+                  "relative w-full max-w-5xl bg-black rounded-3xl overflow-hidden shadow-2xl",
+                  selectedVideo.video_embed_url?.includes('tiktok') || 
+                  selectedVideo.video_embed_url?.includes('shorts') || 
+                  selectedVideo.video_embed_url?.includes('reels') 
+                    ? "max-w-sm aspect-[9/16]" 
+                    : "aspect-video"
+                )}
+              >
+                <button 
+                  onClick={() => setSelectedVideo(null)}
+                  className="absolute top-4 right-4 z-10 p-2 bg-black/50 text-white rounded-full hover:bg-black/70 transition-colors"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+                
+                {selectedVideo.video_embed_url ? (
+                  <iframe 
+                    src={getEmbedUrl(selectedVideo.video_embed_url) || ''}
+                    className="w-full h-full"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    allowFullScreen
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-white">
+                    <p>未提供影片連結</p>
+                  </div>
+                )}
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
         
         <div className="mt-12 text-center">
           <button 
@@ -1582,8 +1635,31 @@ const PartnersPage = () => {
   );
 };
 
+const getEmbedUrl = (url: string) => {
+  if (!url) return null;
+  
+  // YouTube
+  const ytMatch = url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/);
+  if (ytMatch) return `https://www.youtube.com/embed/${ytMatch[1]}`;
+  
+  // YouTube Shorts
+  const shortsMatch = url.match(/youtube\.com\/shorts\/([^"&?\/\s]{11})/);
+  if (shortsMatch) return `https://www.youtube.com/embed/${shortsMatch[1]}`;
+  
+  // TikTok
+  const tiktokMatch = url.match(/tiktok\.com\/.*\/video\/(\d+)/);
+  if (tiktokMatch) return `https://www.tiktok.com/embed/v2/${tiktokMatch[1]}`;
+  
+  // Instagram Reels
+  const reelsMatch = url.match(/instagram\.com\/(?:reels|reel)\/([^\/?#&]+)/);
+  if (reelsMatch) return `https://www.instagram.com/reels/${reelsMatch[1]}/embed`;
+  
+  return url;
+};
+
 const KOLReviewsPage = () => {
   const [reviews, setReviews] = useState<KOLReview[]>([]);
+  const [selectedVideo, setSelectedVideo] = useState<KOLReview | null>(null);
 
   useEffect(() => {
     const fetchReviews = async () => {
@@ -1612,10 +1688,13 @@ const KOLReviewsPage = () => {
               whileInView={{ opacity: 1, scale: 1 }}
               className="bg-white rounded-3xl overflow-hidden shadow-sm border border-stone-100 group"
             >
-              <div className="relative aspect-video bg-stone-200">
+              <div 
+                className="relative aspect-video bg-stone-200 cursor-pointer overflow-hidden"
+                onClick={() => review.media_type === 'video' && setSelectedVideo(review)}
+              >
                 {review.media_type === 'video' ? (
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <img src={review.media_url} className="w-full h-full object-cover opacity-80" alt={review.title} />
+                    <img src={review.media_url} className="w-full h-full object-cover opacity-80 group-hover:scale-105 transition-transform duration-500" alt={review.title} />
                     <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition-all flex items-center justify-center">
                       <div className="w-16 h-16 bg-white/90 rounded-full flex items-center justify-center text-orange-600 shadow-xl transform group-hover:scale-110 transition-transform">
                         <Play className="w-8 h-8 fill-current" />
@@ -1623,7 +1702,7 @@ const KOLReviewsPage = () => {
                     </div>
                   </div>
                 ) : (
-                  <img src={review.media_url} className="w-full h-full object-cover" alt={review.title} />
+                  <img src={review.media_url} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt={review.title} />
                 )}
               </div>
               <div className="p-6">
@@ -1655,6 +1734,54 @@ const KOLReviewsPage = () => {
           ))}
         </div>
       </div>
+
+      {/* Video Modal */}
+      <AnimatePresence>
+        {selectedVideo && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-8">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setSelectedVideo(null)}
+              className="absolute inset-0 bg-stone-900/90 backdrop-blur-md"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className={cn(
+                "relative w-full max-w-5xl bg-black rounded-3xl overflow-hidden shadow-2xl",
+                selectedVideo.video_embed_url?.includes('tiktok') || 
+                selectedVideo.video_embed_url?.includes('shorts') || 
+                selectedVideo.video_embed_url?.includes('reels') 
+                  ? "max-w-sm aspect-[9/16]" 
+                  : "aspect-video"
+              )}
+            >
+              <button 
+                onClick={() => setSelectedVideo(null)}
+                className="absolute top-4 right-4 z-10 p-2 bg-black/50 text-white rounded-full hover:bg-black/70 transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+              
+              {selectedVideo.video_embed_url ? (
+                <iframe 
+                  src={getEmbedUrl(selectedVideo.video_embed_url) || ''}
+                  className="w-full h-full"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  allowFullScreen
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-white">
+                  <p>未提供影片連結</p>
+                </div>
+              )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
@@ -2064,6 +2191,7 @@ const AdminDashboard = () => {
       kol_avatar_url: avatarUrl,
       media_type: formData.get('media_type') as string,
       media_url: imageUrl,
+      video_embed_url: formData.get('video_embed_url') as string,
       content: editorContent,
     };
 
@@ -2988,6 +3116,16 @@ const AdminDashboard = () => {
                       <option value="image">圖文</option>
                       <option value="video">影片</option>
                     </select>
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-sm font-medium text-stone-700 mb-2">影片連結 (YouTube, TikTok, Reels 等)</label>
+                    <input 
+                      name="video_embed_url" 
+                      placeholder="請輸入影片網址..."
+                      defaultValue={editingKOL?.video_embed_url} 
+                      className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" 
+                    />
+                    <p className="mt-1 text-xs text-stone-400">支援 YouTube, Shorts, TikTok, Instagram Reels 連結</p>
                   </div>
                   <div>
                     <ImageUpload 
