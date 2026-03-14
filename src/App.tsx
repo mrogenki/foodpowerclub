@@ -1346,7 +1346,7 @@ const PlaceAutocomplete = ({ onPlaceSelect }: PlaceAutocompleteProps) => {
     if (!places || !inputRef.current) return;
 
     const options = {
-      fields: ['geometry', 'name', 'formatted_address', 'international_phone_number', 'rating', 'photos', 'editorial_summary'],
+      fields: ['geometry', 'name', 'formatted_address', 'international_phone_number', 'rating', 'photos', 'editorial_summary', 'opening_hours', 'price_level', 'website'],
     };
 
     setPlaceAutocomplete(new places.Autocomplete(inputRef.current, options));
