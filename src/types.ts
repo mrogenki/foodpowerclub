@@ -41,6 +41,10 @@ export interface Location {
   address: string;
   lat: number;
   lng: number;
+  phone?: string;
+  image_url?: string;
+  description?: string;
+  rating?: number;
   created_at: string;
 }
 

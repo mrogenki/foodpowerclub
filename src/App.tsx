@@ -936,46 +936,147 @@ const MapPage = () => {
           </button>
         </div>
         
-        <div className="bg-white rounded-3xl p-4 shadow-sm border border-stone-200 h-[600px] relative overflow-hidden z-0">
-          <Map
-            defaultCenter={{ lat: 25.0422, lng: 121.5435 }}
-            defaultZoom={14}
-            gestureHandling={'greedy'}
-            disableDefaultUI={false}
-            mapId={GOOGLE_MAPS_MAP_ID}
-          >
-            {filteredLocations.map((loc) => (
-              <AdvancedMarker
-                key={loc.id}
-                position={{ lat: loc.lat, lng: loc.lng }}
-                onClick={() => setSelectedShop(loc)}
-              >
-                <Pin 
-                  background={loc.category === 'BBQ' ? '#ef4444' : loc.category === 'Hotpot' ? '#f97316' : loc.category === 'Drink' ? '#06b6d4' : '#ea580c'} 
-                  glyphColor={'#fff'} 
-                  borderColor={'#fff'} 
-                />
-              </AdvancedMarker>
-            ))}
+        <div className="relative h-[700px] bg-white rounded-3xl shadow-sm border border-stone-200 overflow-hidden">
+          {/* Full Background Map */}
+          <div className="absolute inset-0 z-0">
+            <Map
+              defaultCenter={{ lat: 25.0422, lng: 121.5435 }}
+              defaultZoom={14}
+              gestureHandling={'greedy'}
+              disableDefaultUI={false}
+              mapId={GOOGLE_MAPS_MAP_ID}
+            >
+              {filteredLocations.map((loc) => (
+                <AdvancedMarker
+                  key={loc.id}
+                  position={{ lat: loc.lat, lng: loc.lng }}
+                  onClick={() => setSelectedShop(loc)}
+                >
+                  <Pin 
+                    background={loc.category === 'BBQ' ? '#ef4444' : loc.category === 'Hotpot' ? '#f97316' : loc.category === 'Drink' ? '#06b6d4' : '#ea580c'} 
+                    glyphColor={'#fff'} 
+                    borderColor={'#fff'} 
+                  />
+                </AdvancedMarker>
+              ))}
+            </Map>
+          </div>
 
+          {/* Floating Info Panel */}
+          <AnimatePresence>
             {selectedShop && (
-              <InfoWindow
-                position={{ lat: selectedShop.lat, lng: selectedShop.lng }}
-                onCloseClick={() => setSelectedShop(null)}
+              <motion.div
+                initial={{ x: -400, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                exit={{ x: -400, opacity: 0 }}
+                transition={{ type: "spring", damping: 25, stiffness: 200 }}
+                className="absolute top-4 bottom-4 left-4 w-[calc(100%-32px)] sm:w-96 bg-white rounded-2xl shadow-2xl border border-stone-200 overflow-hidden flex flex-col z-10"
               >
-                <div className="p-1 max-w-[200px]">
-                  <h3 className="font-bold text-stone-900 text-sm">{selectedShop.name}</h3>
-                  <p className="text-xs text-orange-600 font-medium mb-1">
-                    {selectedShop.category === 'BBQ' ? '燒肉' : 
-                     selectedShop.category === 'Hotpot' ? '火鍋' : 
-                     selectedShop.category === 'Bento' ? '便當' : 
-                     selectedShop.category === 'Drink' ? '手搖' : selectedShop.category}
-                  </p>
-                  <p className="text-[10px] text-stone-500 leading-tight">{selectedShop.address}</p>
+                <div className="relative h-48 bg-stone-100 shrink-0">
+                  {selectedShop.image_url ? (
+                    <img 
+                      src={selectedShop.image_url} 
+                      alt={selectedShop.name}
+                      className="w-full h-full object-cover"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-stone-300">
+                      <ImageIcon className="w-12 h-12" />
+                    </div>
+                  )}
+                  <button 
+                    onClick={() => setSelectedShop(null)}
+                    className="absolute top-3 right-3 p-2 bg-white/90 backdrop-blur-md rounded-full text-stone-600 hover:text-stone-900 shadow-sm z-20"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                  <div className="absolute bottom-3 left-3">
+                    <span className={cn(
+                      "px-3 py-1 rounded-full text-xs font-bold text-white shadow-sm",
+                      selectedShop.category === 'BBQ' ? "bg-orange-600" : 
+                      selectedShop.category === 'Hotpot' ? "bg-red-600" : 
+                      selectedShop.category === 'Bento' ? "bg-emerald-600" : "bg-blue-600"
+                    )}>
+                      {selectedShop.category === 'BBQ' ? '燒肉' : 
+                       selectedShop.category === 'Hotpot' ? '火鍋' : 
+                       selectedShop.category === 'Bento' ? '便當' : 
+                       selectedShop.category === 'Drink' ? '手搖' : selectedShop.category}
+                    </span>
+                  </div>
                 </div>
-              </InfoWindow>
+
+                <div className="p-6 flex-1 overflow-y-auto space-y-6 scrollbar-hide">
+                  <div>
+                    <h2 className="text-xl font-bold text-stone-900 mb-1 leading-tight">{selectedShop.name}</h2>
+                    <div className="flex items-center gap-1 text-orange-500">
+                      {[...Array(5)].map((_, i) => (
+                        <Star key={i} className={cn("w-3.5 h-3.5 fill-current", i >= (selectedShop.rating || 5) && "text-stone-200 fill-none")} />
+                      ))}
+                      <span className="text-xs font-medium ml-1 text-stone-500">{(selectedShop.rating || 5).toFixed(1)}</span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="flex items-start gap-3">
+                      <div className="p-2 bg-stone-50 rounded-lg shrink-0">
+                        <MapPin className="w-4 h-4 text-stone-500" />
+                      </div>
+                      <div>
+                        <p className="text-sm text-stone-600 leading-relaxed">{selectedShop.address}</p>
+                        <a 
+                          href={`https://www.google.com/maps/dir/?api=1&destination=${selectedShop.lat},${selectedShop.lng}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-orange-600 text-xs font-bold mt-2 inline-flex items-center gap-1 hover:underline"
+                        >
+                          開啟導航 <ChevronRight className="w-3 h-3" />
+                        </a>
+                      </div>
+                    </div>
+
+                    {selectedShop.phone && (
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-stone-50 rounded-lg shrink-0">
+                          <Play className="w-4 h-4 text-stone-500 rotate-90" />
+                        </div>
+                        <a href={`tel:${selectedShop.phone}`} className="text-sm text-stone-600 hover:text-orange-600 transition-colors font-medium">
+                          {selectedShop.phone}
+                        </a>
+                      </div>
+                    )}
+                  </div>
+
+                  {selectedShop.description && (
+                    <div className="pt-5 border-t border-stone-100">
+                      <h4 className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-2">店家簡介</h4>
+                      <p className="text-sm text-stone-600 leading-relaxed italic">
+                        "{selectedShop.description}"
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="pt-5 border-t border-stone-100">
+                    <div className="bg-gradient-to-br from-orange-50 to-orange-100/50 rounded-2xl p-4 border border-orange-100">
+                      <div className="flex items-center gap-2 text-orange-700 font-bold text-sm mb-1">
+                        <Tag className="w-4 h-4" /> 祭典專屬折扣
+                      </div>
+                      <p className="text-xs text-orange-600 leading-relaxed">出示「食在力量」活動畫面，即享全單 9 折優惠！</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-4 bg-stone-50 border-t border-stone-100 shrink-0">
+                  <button 
+                    onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(selectedShop.name + ' ' + selectedShop.address)}`, '_blank')}
+                    className="w-full py-3 bg-stone-900 text-white rounded-xl font-bold hover:bg-stone-800 transition-all shadow-lg shadow-stone-200 flex items-center justify-center gap-2 text-sm"
+                  >
+                    <MapPin className="w-4 h-4" /> 查看 Google 評論
+                  </button>
+                </div>
+              </motion.div>
             )}
-          </Map>
+          </AnimatePresence>
         </div>
 
         <div className="mt-12 grid grid-cols-2 md:grid-cols-5 gap-4">
@@ -1204,7 +1305,7 @@ const PlaceAutocomplete = ({ onPlaceSelect }: PlaceAutocompleteProps) => {
     if (!places || !inputRef.current) return;
 
     const options = {
-      fields: ['geometry', 'name', 'formatted_address'],
+      fields: ['geometry', 'name', 'formatted_address', 'international_phone_number', 'rating', 'photos', 'editorial_summary'],
     };
 
     setPlaceAutocomplete(new places.Autocomplete(inputRef.current, options));
@@ -1263,6 +1364,10 @@ const AdminDashboard = () => {
   const [locationLat, setLocationLat] = useState<number | string>('');
   const [locationLng, setLocationLng] = useState<number | string>('');
   const [locationCategory, setLocationCategory] = useState<'BBQ' | 'Hotpot' | 'Bento' | 'Drink'>('BBQ');
+  const [locationPhone, setLocationPhone] = useState('');
+  const [locationImageUrl, setLocationImageUrl] = useState('');
+  const [locationDescription, setLocationDescription] = useState('');
+  const [locationRating, setLocationRating] = useState(5);
 
   const [imageUrl, setImageUrl] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
@@ -1309,6 +1414,10 @@ const AdminDashboard = () => {
       setLocationLat(editingLocation.lat);
       setLocationLng(editingLocation.lng);
       setLocationCategory(editingLocation.category);
+      setLocationPhone(editingLocation.phone || '');
+      setLocationImageUrl(editingLocation.image_url || '');
+      setLocationDescription(editingLocation.description || '');
+      setLocationRating(editingLocation.rating || 5);
     } else {
       setEditorContent('');
       setImageUrl('');
@@ -1319,6 +1428,10 @@ const AdminDashboard = () => {
       setLocationLat('');
       setLocationLng('');
       setLocationCategory('BBQ');
+      setLocationPhone('');
+      setLocationImageUrl('');
+      setLocationDescription('');
+      setLocationRating(5);
     }
   }, [editingEvent, editingBrand, editingPartner, editingKOL, editingPromotion, editingLocation]);
 
@@ -1593,6 +1706,10 @@ const AdminDashboard = () => {
       address: locationAddress,
       lat: lat,
       lng: lng,
+      phone: locationPhone,
+      image_url: locationImageUrl,
+      description: locationDescription,
+      rating: locationRating,
     };
 
     console.log('Saving location data:', locationData);
@@ -2502,6 +2619,15 @@ const AdminDashboard = () => {
                         setLocationLat(place.geometry.location.lat());
                         setLocationLng(place.geometry.location.lng());
                       }
+                      // 自動帶入 Google 資訊
+                      if (place.international_phone_number) setLocationPhone(place.international_phone_number);
+                      if (place.rating) setLocationRating(place.rating);
+                      if (place.editorial_summary) setLocationDescription(place.editorial_summary);
+                      if (place.photos && place.photos.length > 0) {
+                        // 取得 Google 第一張照片的 URL (1000px 寬度)
+                        const photoUrl = place.photos[0].getUrl({ maxWidth: 1000 });
+                        setLocationImageUrl(photoUrl);
+                      }
                     }} 
                   />
                   <div className="flex items-center gap-2 text-xs text-stone-400">
@@ -2541,6 +2667,71 @@ const AdminDashboard = () => {
                       onChange={(e) => setLocationAddress(e.target.value)}
                       className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" 
                       required 
+                    />
+                  </div>
+
+                  <div className="col-span-2 grid grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-sm font-medium text-stone-700 mb-2">電話</label>
+                      <input 
+                        value={locationPhone} 
+                        onChange={(e) => setLocationPhone(e.target.value)}
+                        placeholder="02-1234-5678"
+                        className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" 
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-stone-700 mb-2">評分 (1-5)</label>
+                      <input 
+                        type="number"
+                        min="1"
+                        max="5"
+                        step="0.1"
+                        value={locationRating} 
+                        onChange={(e) => setLocationRating(parseFloat(e.target.value))}
+                        className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" 
+                      />
+                    </div>
+                  </div>
+
+                  <div className="col-span-2">
+                    <label className="block text-sm font-medium text-stone-700 mb-2">店家照片 URL</label>
+                    <div className="flex gap-2">
+                      <input 
+                        value={locationImageUrl} 
+                        onChange={(e) => setLocationImageUrl(e.target.value)}
+                        placeholder="https://images.unsplash.com/..."
+                        className="flex-1 px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" 
+                      />
+                      <input 
+                        type="file" 
+                        id="location-image-upload" 
+                        className="hidden" 
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            const url = await uploadImage(file);
+                            setLocationImageUrl(url);
+                          }
+                        }}
+                      />
+                      <button 
+                        type="button"
+                        onClick={() => document.getElementById('location-image-upload')?.click()}
+                        className="px-4 py-2 bg-stone-100 text-stone-600 rounded-xl hover:bg-stone-200 transition-colors"
+                      >
+                        <ImageIcon className="w-5 h-5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="col-span-2">
+                    <label className="block text-sm font-medium text-stone-700 mb-2">店家簡介</label>
+                    <textarea 
+                      value={locationDescription} 
+                      onChange={(e) => setLocationDescription(e.target.value)}
+                      rows={3}
+                      className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" 
                     />
                   </div>
                 </div>
