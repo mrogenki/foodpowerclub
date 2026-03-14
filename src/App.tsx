@@ -1313,7 +1313,7 @@ const PromotionsPage = () => {
 
                 <div className="flex items-center justify-between text-xs text-stone-400 mt-auto pt-4 border-t border-stone-50">
                   <span className="flex items-center gap-1">
-                    <Calendar className="w-3 h-3" /> {promo.end_date} 截止
+                    <Calendar className="w-3 h-3" /> {promo.start_date} ~ {promo.end_date}
                   </span>
                   <button className="text-orange-600 font-bold hover:underline">立即領取</button>
                 </div>
@@ -1513,6 +1513,10 @@ const AdminDashboard = () => {
         const { data, error } = await supabase.from('promotions').select('*, brand:brands(name)');
         if (error) throw error;
         if (data) setPromotions(data as any);
+        
+        // Also fetch brands for the selection dropdown
+        const { data: brandsData } = await supabase.from('brands').select('id, name');
+        if (brandsData) setBrands(brandsData as any);
       } else if (activeTab === 'locations') {
         console.log('Fetching locations...');
         const { data, error } = await supabase.from('locations').select('*');
@@ -1672,6 +1676,7 @@ const AdminDashboard = () => {
       brand_id: formData.get('brand_id') as string,
       description: formData.get('description') as string,
       discount_code: formData.get('discount_code') as string,
+      start_date: formData.get('start_date') as string,
       end_date: formData.get('end_date') as string,
       image_url: imageUrl,
       is_active: formData.get('is_active') === 'true',
@@ -2617,9 +2622,13 @@ const AdminDashboard = () => {
                     <label className="block text-sm font-medium text-stone-700 mb-2">簡短描述</label>
                     <textarea name="description" defaultValue={editingPromotion?.description} className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600 h-20" required />
                   </div>
-                  <div>
+                  <div className="col-span-2">
                     <label className="block text-sm font-medium text-stone-700 mb-2">折扣碼</label>
                     <input name="discount_code" defaultValue={editingPromotion?.discount_code} className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-2">開始日期</label>
+                    <input type="date" name="start_date" defaultValue={editingPromotion?.start_date} className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" required />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-stone-700 mb-2">截止日期</label>
