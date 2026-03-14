@@ -37,6 +37,8 @@ import { supabase } from './lib/supabase';
 import { cn } from './lib/utils';
 import type { Event, Brand, Partner, Location, Review, KOLReview, Promotion } from './types';
 
+import { APIProvider, Map, AdvancedMarker, Pin, InfoWindow } from '@vis.gl/react-google-maps';
+
 // --- Utilities ---
 
 const uploadImage = async (file: File) => {
@@ -876,32 +878,56 @@ const Login = () => {
 };
 
 const MapPage = () => {
+  const [selectedShop, setSelectedShop] = useState<any>(null);
+
+  const restaurants = [
+    { id: 1, name: '乾杯燒肉居酒屋', position: { lat: 25.0422, lng: 121.5435 }, type: '燒肉', address: '台北市大安區敦化南路一段236巷17號' },
+    { id: 2, name: '發肉燒肉餐酒', position: { lat: 25.0485, lng: 121.5495 }, type: '燒肉', address: '台北市松山區敦化北路4巷56號' },
+    { id: 3, name: '詹記麻辣火鍋', position: { lat: 25.0268, lng: 121.5438 }, type: '火鍋', address: '台北市大安區和平東路三段60號' },
+    { id: 4, name: '春水堂', position: { lat: 25.0462, lng: 121.5312 }, type: '手搖', address: '台北市中山區南京東路一段29號' },
+  ];
+
   return (
     <div className="pt-24 min-h-screen bg-stone-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-12">
           <h1 className="text-4xl font-bold text-stone-900 mb-4">美食地圖</h1>
-          <p className="text-stone-500">探索活動周邊的精選美食店家</p>
+          <p className="text-stone-500">探索活動周邊的精選美食店家（Google Maps 驅動）</p>
         </div>
         
-        <div className="bg-white rounded-3xl p-4 shadow-sm border border-stone-200 h-[600px] flex items-center justify-center relative overflow-hidden">
-          <div className="absolute inset-0 bg-stone-100 flex items-center justify-center">
-            <div className="text-center">
-              <MapPin className="w-12 h-12 text-stone-300 mx-auto mb-4" />
-              <p className="text-stone-400 font-medium">地圖載入中...</p>
-              <p className="text-stone-400 text-sm mt-2">（此處將整合 Google Maps 或 Leaflet）</p>
-            </div>
-          </div>
-          
-          {/* Mock Map Markers Overlay */}
-          <div className="absolute top-1/4 left-1/3 bg-white p-2 rounded-lg shadow-lg border border-orange-100 flex items-center gap-2 animate-bounce">
-            <Utensils className="w-4 h-4 text-orange-600" />
-            <span className="text-xs font-bold">乾杯燒肉</span>
-          </div>
-          <div className="absolute bottom-1/3 right-1/4 bg-white p-2 rounded-lg shadow-lg border border-orange-100 flex items-center gap-2 animate-bounce [animation-delay:0.2s]">
-            <Utensils className="w-4 h-4 text-orange-600" />
-            <span className="text-xs font-bold">發肉燒肉</span>
-          </div>
+        <div className="bg-white rounded-3xl p-4 shadow-sm border border-stone-200 h-[600px] relative overflow-hidden z-0">
+          <APIProvider apiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY || ''}>
+            <Map
+              defaultCenter={{ lat: 25.0422, lng: 121.5435 }}
+              defaultZoom={14}
+              gestureHandling={'greedy'}
+              disableDefaultUI={false}
+              mapId="bf51a910020fa25a" // Optional: Use your Map ID if you have one for Advanced Markers
+            >
+              {restaurants.map((shop) => (
+                <AdvancedMarker
+                  key={shop.id}
+                  position={shop.position}
+                  onClick={() => setSelectedShop(shop)}
+                >
+                  <Pin background={'#ea580c'} glyphColor={'#fff'} borderColor={'#9a3412'} />
+                </AdvancedMarker>
+              ))}
+
+              {selectedShop && (
+                <InfoWindow
+                  position={selectedShop.position}
+                  onCloseClick={() => setSelectedShop(null)}
+                >
+                  <div className="p-1 max-w-[200px]">
+                    <h3 className="font-bold text-stone-900 text-sm">{selectedShop.name}</h3>
+                    <p className="text-xs text-orange-600 font-medium mb-1">{selectedShop.type}</p>
+                    <p className="text-[10px] text-stone-500 leading-tight">{selectedShop.address}</p>
+                  </div>
+                </InfoWindow>
+              )}
+            </Map>
+          </APIProvider>
         </div>
 
         <div className="mt-12 grid grid-cols-1 md:grid-cols-4 gap-6">
