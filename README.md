@@ -1,20 +1,17 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# 食在力量俱樂部 (Food Power Club)
 
-# Run and deploy your AI Studio app
+一個全方位的美食活動平台，包含近期與過往活動資訊、品牌牆、贊助夥伴介紹、美食地圖以及完整的後台管理系統。支援圖文編輯與影片上傳的活動部落格頁面。
 
-This contains everything you need to run your app locally.
+## 主要功能
+- **活動資訊**：查看近期與過往的美食祭活動。
+- **品牌牆**：展示參與的品牌及其詳細資訊。
+- **贊助夥伴**：介紹支持活動的合作夥伴。
+- **美食地圖**：整合 Google Maps，方便尋找美食據點。
+- **開箱分享**：KOL 推薦與影片分享。
+- **後台管理**：完整的 CRUD 功能，支援區塊編輯器與影片連結。
 
-View your app in AI Studio: https://ai.studio/apps/91eb972c-187e-4a53-acc3-739243d4350c
-
-## Run Locally
-
-**Prerequisites:**  Node.js
-
-
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+## 技術棧
+- **Frontend**: React, TypeScript, Tailwind CSS, Framer Motion
+- **Backend**: Supabase (PostgreSQL)
+- **Maps**: Google Maps API
+- **Editor**: BlockNote
