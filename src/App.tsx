@@ -1,6 +1,6 @@
 /// <reference types="@types/google.maps" />
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { BrowserRouter as Router, Routes, Route, Link, useNavigate, useParams } from 'react-router-dom';
+import { HashRouter as Router, Routes, Route, Link, useNavigate, useParams } from 'react-router-dom';
 import { 
   Utensils, 
   Calendar, 
@@ -75,7 +75,7 @@ const uploadImage = async (file: File) => {
 // --- Block Editor Components ---
 
 const BlockEditor = ({ initialContent, onChange }: { initialContent?: string, onChange: (content: string) => void }) => {
-  const editor: BlockNoteEditor = useCreateBlockNote({
+  const editor = useCreateBlockNote({
     initialContent: initialContent ? JSON.parse(initialContent) as PartialBlock[] : undefined,
     uploadFile: uploadImage,
   });
