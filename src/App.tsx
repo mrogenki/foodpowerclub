@@ -47,6 +47,11 @@ import type { Event, Brand, Partner, Location, Review, KOLReview, Promotion } fr
 
 import { APIProvider, Map, AdvancedMarker, Pin, InfoWindow, useMapsLibrary } from '@vis.gl/react-google-maps';
 
+// --- Constants ---
+const DEFAULT_EVENT_IMAGE = "https://images.unsplash.com/photo-1555939594-58d7cb561ad1?q=80&w=1974&auto=format&fit=crop";
+const DEFAULT_LOGO = "https://placehold.co/400x400/orange/white?text=Logo";
+const DEFAULT_AVATAR = "https://placehold.co/100x100/stone/white?text=KOL";
+
 // --- Utilities ---
 
 const uploadImage = async (file: File) => {
@@ -113,6 +118,29 @@ const BlockRenderer = ({ content }: { content: string }) => {
     <div className="prose prose-stone max-w-none prose-img:rounded-3xl prose-headings:text-stone-900 prose-p:text-stone-600 prose-p:leading-relaxed prose-a:text-orange-600">
       <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
     </div>
+  );
+};
+
+const SafeImage = ({ src, alt, className, fallback = DEFAULT_EVENT_IMAGE, ...props }: any) => {
+  const [imgSrc, setImgSrc] = useState(src || fallback);
+
+  useEffect(() => {
+    setImgSrc(src || fallback);
+  }, [src, fallback]);
+
+  return (
+    <img
+      {...props}
+      src={imgSrc}
+      alt={alt}
+      className={className}
+      onError={() => {
+        if (imgSrc !== fallback) {
+          setImgSrc(fallback);
+        }
+      }}
+      referrerPolicy="no-referrer"
+    />
   );
 };
 
@@ -348,11 +376,11 @@ const Home = () => {
             transition={{ duration: 1 }}
             className="absolute inset-0"
           >
-            <img 
-              src={activeHeroEvent?.image_url || "https://images.unsplash.com/photo-1529692236671-f1f6cf9683ba?q=80&w=2070&auto=format&fit=crop"} 
+            <SafeImage 
+              src={activeHeroEvent?.image_url} 
+              fallback="https://images.unsplash.com/photo-1529692236671-f1f6cf9683ba?q=80&w=2070&auto=format&fit=crop"
               className="absolute inset-0 w-full h-full object-cover opacity-60"
               alt="Hero"
-              referrerPolicy="no-referrer"
             />
           </motion.div>
         </AnimatePresence>
@@ -426,7 +454,7 @@ const Home = () => {
                 <div className="absolute top-4 right-4 bg-orange-600 text-white px-3 py-1 rounded-full text-xs font-bold z-10">
                   進行中
                 </div>
-                <img src={event.image_url} className="w-full h-56 object-cover" alt={event.title} />
+                <SafeImage src={event.image_url} className="w-full h-56 object-cover" alt={event.title} />
                 <div className="p-8">
                   <h3 className="text-2xl font-bold mb-3">{event.title}</h3>
                   <p className="text-stone-500 text-sm mb-6 line-clamp-2">{event.description}</p>
@@ -444,7 +472,7 @@ const Home = () => {
                 whileHover={{ y: -10 }}
                 className="bg-stone-50 rounded-3xl overflow-hidden border border-stone-100"
               >
-                <img src={event.image_url} className="w-full h-56 object-cover opacity-80" alt={event.title} />
+                <SafeImage src={event.image_url} className="w-full h-56 object-cover opacity-80" alt={event.title} />
                 <div className="p-8">
                   <h3 className="text-xl font-bold mb-3">{event.title}</h3>
                   <p className="text-stone-500 text-sm mb-6 line-clamp-2">{event.description}</p>
@@ -473,7 +501,7 @@ const Home = () => {
             {promotions.map((promo) => (
               <div key={promo.id} className="bg-white p-6 rounded-3xl border border-stone-100 shadow-sm">
                 <div className="flex items-center gap-3 mb-4">
-                  <img src={promo.brand?.logo_url} className="w-10 h-10 rounded-full object-cover" alt={promo.brand?.name} />
+                  <SafeImage src={promo.brand?.logo_url} fallback={DEFAULT_LOGO} className="w-10 h-10 rounded-full object-cover" alt={promo.brand?.name} />
                   <span className="font-bold text-stone-800">{promo.brand?.name}</span>
                 </div>
                 <h3 className="text-lg font-bold mb-2">{promo.title}</h3>
@@ -504,7 +532,7 @@ const Home = () => {
             {reviews.map((review) => (
               <div key={review.id} className="group cursor-pointer">
                 <div className="relative aspect-video rounded-3xl overflow-hidden mb-4">
-                  <img src={review.media_url} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt={review.title} />
+                  <SafeImage src={review.media_url} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt={review.title} />
                   {review.media_type === 'video' && (
                     <div className="absolute inset-0 flex items-center justify-center bg-black/20">
                       <Play className="w-12 h-12 text-white fill-current" />
@@ -513,7 +541,7 @@ const Home = () => {
                 </div>
                 <h3 className="font-bold text-lg mb-2 group-hover:text-orange-600 transition-colors">{review.title}</h3>
                 <div className="flex items-center gap-2 text-sm text-stone-400">
-                  <img src={review.kol_avatar_url} className="w-6 h-6 rounded-full" alt={review.kol_name} />
+                  <SafeImage src={review.kol_avatar_url} fallback={DEFAULT_AVATAR} className="w-6 h-6 rounded-full" alt={review.kol_name} />
                   <span>{review.kol_name}</span>
                 </div>
               </div>
@@ -573,15 +601,15 @@ const Home = () => {
             <p className="text-stone-500">感謝所有支持美食祭的合作夥伴</p>
           </div>
           
-          <div className="grid grid-cols-2 md:grid-cols-6 gap-12 items-center opacity-60">
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-12 items-center">
             {partners.map((partner) => (
               <Link 
                 key={partner.id} 
                 to={`/partner/${partner.id}`}
-                className="flex flex-col items-center group hover:opacity-100 transition-opacity"
+                className="flex flex-col items-center group transition-opacity"
               >
-                <img src={partner.logo_url} className="w-16 h-16 object-contain mb-4 grayscale group-hover:grayscale-0 transition-all" alt={partner.name} />
-                <span className="text-[10px] uppercase tracking-widest font-bold text-stone-400 group-hover:text-orange-600 transition-colors">{partner.name}</span>
+                <SafeImage src={partner.logo_url} fallback={DEFAULT_LOGO} className="w-16 h-16 object-contain mb-4 transition-all" alt={partner.name} />
+                <span className="text-[10px] uppercase tracking-widest font-bold text-stone-600 group-hover:text-orange-600 transition-colors">{partner.name}</span>
               </Link>
             ))}
           </div>
@@ -624,7 +652,7 @@ const EventsPage = () => {
               className="bg-white rounded-3xl overflow-hidden shadow-sm border border-stone-100 group"
             >
               <div className="relative h-64 overflow-hidden">
-                <img src={event.image_url} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt={event.title} />
+                <SafeImage src={event.image_url} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt={event.title} />
                 <div className="absolute top-4 right-4">
                   <span className={cn(
                     "px-3 py-1 rounded-full text-xs font-bold text-white shadow-lg",
@@ -682,7 +710,7 @@ const EventDetail = () => {
     <div className="pt-16 bg-white min-h-screen">
       {/* Hero Section */}
       <div className="h-[60vh] relative overflow-hidden">
-        <img src={event.image_url} className="w-full h-full object-cover" alt={event.title} />
+        <SafeImage src={event.image_url} className="w-full h-full object-cover" alt={event.title} />
         <div className="absolute inset-0 bg-gradient-to-t from-stone-900 via-stone-900/40 to-transparent flex items-end p-8">
           <div className="max-w-7xl mx-auto w-full">
             <motion.div
@@ -776,7 +804,7 @@ const EventDetail = () => {
                     to={`/partner/${partner.id}`}
                     className="flex items-center gap-4 p-4 bg-stone-50 rounded-2xl hover:bg-stone-100 transition-colors group"
                   >
-                    <img src={partner.logo_url} className="w-12 h-12 rounded-xl object-cover shadow-sm" alt={partner.name} />
+                    <SafeImage src={partner.logo_url} fallback={DEFAULT_LOGO} className="w-12 h-12 rounded-xl object-cover shadow-sm" alt={partner.name} />
                     <div>
                       <h4 className="font-bold text-sm text-stone-800 group-hover:text-orange-600 transition-colors">{partner.name}</h4>
                       <p className="text-[10px] uppercase tracking-widest text-stone-400 font-bold">{partner.type}</p>
@@ -835,7 +863,7 @@ const BrandDetail = () => {
           {/* Brand Header */}
           <div className="p-8 md:p-12 border-b border-stone-50 bg-gradient-to-br from-white to-stone-50">
             <div className="flex flex-col md:flex-row items-center gap-8">
-              <img src={brand.logo_url} className="w-32 h-32 rounded-3xl object-cover shadow-xl border-4 border-white" alt={brand.name} />
+              <SafeImage src={brand.logo_url} fallback={DEFAULT_LOGO} className="w-32 h-32 rounded-3xl object-cover shadow-xl border-4 border-white" alt={brand.name} />
               <div className="text-center md:text-left">
                 <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 mb-4">
                   <span className="px-4 py-1 bg-orange-100 text-orange-600 rounded-full text-xs font-bold uppercase tracking-widest">
@@ -1010,7 +1038,7 @@ const PartnerDetail = () => {
           {/* Partner Header */}
           <div className="p-8 md:p-12 border-b border-stone-50 bg-gradient-to-br from-white to-stone-50">
             <div className="flex flex-col md:flex-row items-center gap-8">
-              <img src={partner.logo_url} className="w-32 h-32 rounded-3xl object-cover shadow-xl border-4 border-white" alt={partner.name} />
+              <SafeImage src={partner.logo_url} fallback={DEFAULT_LOGO} className="w-32 h-32 rounded-3xl object-cover shadow-xl border-4 border-white" alt={partner.name} />
               <div className="text-center md:text-left">
                 <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 mb-4">
                   <span className="px-4 py-1 bg-stone-100 text-stone-600 rounded-full text-xs font-bold uppercase tracking-widest">
@@ -1613,7 +1641,7 @@ const PartnersPage = () => {
               to={`/partner/${partner.id}`}
               className="bg-white p-8 rounded-3xl border border-stone-100 shadow-sm hover:shadow-md transition-all group block"
             >
-              <img src={partner.logo_url} className="w-20 h-20 rounded-2xl object-cover mb-6 bg-stone-50" alt={partner.name} />
+              <SafeImage src={partner.logo_url} fallback={DEFAULT_LOGO} className="w-20 h-20 rounded-2xl object-cover mb-6 bg-stone-50" alt={partner.name} />
               <h3 className="text-xl font-bold mb-2 group-hover:text-orange-600 transition-colors">{partner.name}</h3>
               <p className="text-orange-600 text-sm font-medium mb-4">{partner.type}</p>
               <div className="text-stone-500 text-sm leading-relaxed line-clamp-3">
@@ -1694,7 +1722,7 @@ const KOLReviewsPage = () => {
               >
                 {review.media_type === 'video' ? (
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <img src={review.media_url} className="w-full h-full object-cover opacity-80 group-hover:scale-105 transition-transform duration-500" alt={review.title} />
+                    <SafeImage src={review.media_url} className="w-full h-full object-cover opacity-80 group-hover:scale-105 transition-transform duration-500" alt={review.title} />
                     <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition-all flex items-center justify-center">
                       <div className="w-16 h-16 bg-white/90 rounded-full flex items-center justify-center text-orange-600 shadow-xl transform group-hover:scale-110 transition-transform">
                         <Play className="w-8 h-8 fill-current" />
@@ -1702,18 +1730,18 @@ const KOLReviewsPage = () => {
                     </div>
                   </div>
                 ) : (
-                  <img src={review.media_url} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt={review.title} />
+                  <SafeImage src={review.media_url} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt={review.title} />
                 )}
               </div>
               <div className="p-6">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-3">
-                    <img src={review.kol_avatar_url} className="w-10 h-10 rounded-full object-cover" alt={review.kol_name} />
+                    <SafeImage src={review.kol_avatar_url} fallback={DEFAULT_AVATAR} className="w-10 h-10 rounded-full object-cover" alt={review.kol_name} />
                     <span className="font-bold text-stone-800">{review.kol_name}</span>
                   </div>
                   {(review as any).brand && (
                     <div className="flex items-center gap-2 px-3 py-1 bg-stone-50 rounded-full">
-                      <img src={(review as any).brand.logo_url} className="w-4 h-4 rounded-sm object-cover" alt={(review as any).brand.name} />
+                      <SafeImage src={(review as any).brand.logo_url} fallback={DEFAULT_LOGO} className="w-4 h-4 rounded-sm object-cover" alt={(review as any).brand.name} />
                       <span className="text-[10px] font-bold text-stone-500">{(review as any).brand.name}</span>
                     </div>
                   )}
@@ -1818,14 +1846,14 @@ const PromotionsPage = () => {
               className="bg-white rounded-3xl overflow-hidden shadow-sm border border-stone-100 flex flex-col"
             >
               <div className="relative h-48">
-                <img src={promo.image_url} className="w-full h-full object-cover" alt={promo.title} />
+                <SafeImage src={promo.image_url} className="w-full h-full object-cover" alt={promo.title} />
                 <div className="absolute top-4 left-4 bg-orange-600 text-white px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 shadow-lg">
                   <Tag className="w-3 h-3" /> 限時優惠
                 </div>
               </div>
               <div className="p-6 flex-grow flex flex-col">
                 <div className="flex items-center gap-3 mb-4">
-                  <img src={promo.brand?.logo_url} className="w-8 h-8 rounded-full object-cover bg-stone-50" alt={promo.brand?.name} />
+                  <SafeImage src={promo.brand?.logo_url} fallback={DEFAULT_LOGO} className="w-8 h-8 rounded-full object-cover bg-stone-50" alt={promo.brand?.name} />
                   <span className="text-sm font-bold text-stone-600">{promo.brand?.name}</span>
                 </div>
                 <h3 className="text-xl font-bold mb-2 text-stone-900">{promo.title}</h3>
