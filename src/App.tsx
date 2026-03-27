@@ -60,18 +60,18 @@ const uploadImage = async (file: File, folder: string = 'uploads') => {
   const filePath = `${folder}/${fileName}`;
 
   const { data, error } = await supabase.storage
-    .from('images')
+    .from('IMAGES')
     .upload(filePath, file);
 
   if (error) {
     if (error.message.includes('bucket not found')) {
-      throw new Error('Supabase Storage Bucket "images" 未找到。請在 Supabase Console 建立一個名為 "images" 的 Public Bucket。');
+      throw new Error('Supabase Storage Bucket "IMAGES" 未找到。請在 Supabase Console 建立一個名為 "IMAGES" 的 Public Bucket。');
     }
     throw error;
   }
 
   const { data: { publicUrl } } = supabase.storage
-    .from('images')
+    .from('IMAGES')
     .getPublicUrl(filePath);
 
   return publicUrl;
