@@ -54,10 +54,10 @@ const DEFAULT_AVATAR = "https://placehold.co/100x100/stone/white?text=KOL";
 
 // --- Utilities ---
 
-const uploadImage = async (file: File) => {
+const uploadImage = async (file: File, folder: string = 'uploads') => {
   const fileExt = file.name.split('.').pop();
   const fileName = `${Math.random().toString(36).substring(2)}.${fileExt}`;
-  const filePath = `uploads/${fileName}`;
+  const filePath = `${folder}/${fileName}`;
 
   const { data, error } = await supabase.storage
     .from('images')
@@ -79,10 +79,10 @@ const uploadImage = async (file: File) => {
 
 // --- Block Editor Components ---
 
-const BlockEditor = ({ initialContent, onChange }: { initialContent?: string, onChange: (content: string) => void }) => {
+const BlockEditor = ({ initialContent, onChange, folder = 'editor' }: { initialContent?: string, onChange: (content: string) => void, folder?: string }) => {
   const editor = useCreateBlockNote({
     initialContent: initialContent ? JSON.parse(initialContent) as PartialBlock[] : undefined,
-    uploadFile: uploadImage,
+    uploadFile: (file) => uploadImage(file, folder),
   });
 
   return (
@@ -159,7 +159,7 @@ const BlockNoteRenderer = ({ content }: { content: string }) => {
 
 // --- Components ---
 
-const ImageUpload = ({ value, onChange, label }: { value?: string, onChange: (url: string) => void, label: string }) => {
+const ImageUpload = ({ value, onChange, label, folder = 'uploads' }: { value?: string, onChange: (url: string) => void, label: string, folder?: string }) => {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -170,7 +170,7 @@ const ImageUpload = ({ value, onChange, label }: { value?: string, onChange: (ur
     setUploading(true);
     setError(null);
     try {
-      const url = await uploadImage(file);
+      const url = await uploadImage(file, folder);
       onChange(url);
     } catch (err: any) {
       setError(err.message || '上傳失敗');
@@ -185,7 +185,7 @@ const ImageUpload = ({ value, onChange, label }: { value?: string, onChange: (ur
       <div className="flex items-center gap-4">
         {value && (
           <div className="relative w-20 h-20 rounded-xl overflow-hidden border border-stone-200">
-            <img src={value} alt="Preview" className="w-full h-full object-cover" />
+            <SafeImage src={value} alt="Preview" className="w-full h-full object-cover" />
             <button 
               type="button"
               onClick={() => onChange('')}
@@ -570,7 +570,7 @@ const Home = () => {
             <div className="relative">
               <div className="bg-stone-800 aspect-square rounded-[40px] border border-stone-700 p-4 shadow-2xl transform rotate-3">
                 <div className="w-full h-full rounded-[32px] bg-stone-700 flex items-center justify-center overflow-hidden relative">
-                  <img 
+                  <SafeImage 
                     src="https://images.unsplash.com/photo-1526778548025-fa2f459cd5c1?q=80&w=2066&auto=format&fit=crop" 
                     className="w-full h-full object-cover opacity-50 grayscale" 
                     alt="Map Preview" 
@@ -776,7 +776,7 @@ const EventDetail = () => {
                     className="group border border-stone-100 rounded-3xl p-6 hover:shadow-lg transition-all bg-white block"
                   >
                     <div className="flex items-center gap-4 mb-4">
-                      <img src={brand.logo_url} className="w-16 h-16 rounded-2xl object-cover bg-stone-50" alt={brand.name} />
+                      <SafeImage src={brand.logo_url} className="w-16 h-16 rounded-2xl object-cover bg-stone-50" alt={brand.name} fallback={DEFAULT_LOGO} />
                       <div>
                         <h3 className="font-bold text-lg group-hover:text-orange-600 transition-colors">{brand.name}</h3>
                         <span className="text-[10px] uppercase tracking-wider text-orange-600 font-bold">{brand.category}</span>
@@ -921,7 +921,7 @@ const BrandDetail = () => {
                       <div className="relative aspect-video bg-stone-200 overflow-hidden">
                         {review.media_type === 'video' ? (
                           <div className="absolute inset-0 flex items-center justify-center">
-                            <img src={review.media_url} className="w-full h-full object-cover opacity-80 group-hover:scale-105 transition-transform duration-500" alt={review.title} />
+                            <SafeImage src={review.media_url} className="w-full h-full object-cover opacity-80 group-hover:scale-105 transition-transform duration-500" alt={review.title} />
                             <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition-all flex items-center justify-center">
                               <div className="w-12 h-12 bg-white/90 rounded-full flex items-center justify-center text-orange-600 shadow-xl">
                                 <Play className="w-6 h-6 fill-current" />
@@ -929,12 +929,12 @@ const BrandDetail = () => {
                             </div>
                           </div>
                         ) : (
-                          <img src={review.media_url} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt={review.title} />
+                          <SafeImage src={review.media_url} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt={review.title} />
                         )}
                       </div>
                       <div className="p-6">
                         <div className="flex items-center gap-3 mb-4">
-                          <img src={review.kol_avatar_url} className="w-8 h-8 rounded-full object-cover" alt={review.kol_name} />
+                          <SafeImage src={review.kol_avatar_url} className="w-8 h-8 rounded-full object-cover" alt={review.kol_name} fallback={DEFAULT_AVATAR} />
                           <span className="font-bold text-stone-800 text-sm">{review.kol_name}</span>
                         </div>
                         <h3 className="font-bold mb-2 group-hover:text-orange-600 transition-colors">{review.title}</h3>
@@ -1292,12 +1292,11 @@ const MapPage = () => {
               >
                 <div className="relative h-48 bg-stone-100 shrink-0">
                   {selectedShop.image_url ? (
-                    <img 
-                      src={selectedShop.image_url} 
-                      alt={selectedShop.name}
-                      className="w-full h-full object-cover"
-                      referrerPolicy="no-referrer"
-                    />
+                  <SafeImage 
+                    src={selectedShop.image_url} 
+                    alt={selectedShop.name}
+                    className="w-full h-full object-cover"
+                  />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-stone-300">
                       <ImageIcon className="w-12 h-12" />
@@ -1543,12 +1542,11 @@ const MapPage = () => {
               >
                 <div className="relative h-48 overflow-hidden">
                   {loc.image_url ? (
-                    <img 
-                      src={loc.image_url} 
-                      alt={loc.name}
-                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                      referrerPolicy="no-referrer"
-                    />
+                  <SafeImage 
+                    src={loc.image_url} 
+                    alt={loc.name}
+                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                  />
                   ) : (
                     <div className="w-full h-full bg-stone-50 flex items-center justify-center text-stone-200">
                       <ImageIcon className="w-12 h-12" />
@@ -2654,7 +2652,7 @@ const AdminDashboard = () => {
                       {brands.map(brand => (
                         <tr key={brand.id} className="group">
                           <td className="py-4 font-medium flex items-center gap-3">
-                            <img src={brand.logo_url} className="w-8 h-8 rounded-full object-cover bg-stone-50" alt="" />
+                            <SafeImage src={brand.logo_url} className="w-8 h-8 rounded-full object-cover bg-stone-50" alt="" />
                             {brand.name}
                           </td>
                           <td className="py-4 text-right">
@@ -2711,7 +2709,7 @@ const AdminDashboard = () => {
                       {partners.map(partner => (
                         <tr key={partner.id} className="group">
                           <td className="py-4 font-medium flex items-center gap-3">
-                            <img src={partner.logo_url} className="w-8 h-8 rounded-full object-cover bg-stone-50" alt="" />
+                            <SafeImage src={partner.logo_url} className="w-8 h-8 rounded-full object-cover bg-stone-50" alt="" />
                             {partner.name}
                           </td>
                           <td className="py-4 text-sm">{partner.type}</td>
@@ -2954,6 +2952,7 @@ const AdminDashboard = () => {
                       key={editingEvent?.id || 'new_event'} 
                       initialContent={editingEvent?.content} 
                       onChange={setEditorContent} 
+                      folder="events"
                     />
                   </div>
                   <div>
@@ -2976,6 +2975,7 @@ const AdminDashboard = () => {
                       label="封面圖片" 
                       value={imageUrl} 
                       onChange={setImageUrl} 
+                      folder="events"
                     />
                   </div>
                   <div className="col-span-2">
@@ -3048,6 +3048,7 @@ const AdminDashboard = () => {
                       label="品牌 Logo" 
                       value={logoUrl} 
                       onChange={setLogoUrl} 
+                      folder="brands"
                     />
                   </div>
                   <div className="col-span-2">
@@ -3056,6 +3057,7 @@ const AdminDashboard = () => {
                       key={editingBrand?.id || 'new_brand'} 
                       initialContent={(editingBrand as any)?.content} 
                       onChange={setEditorContent} 
+                      folder="brands"
                     />
                   </div>
                 </div>
@@ -3120,6 +3122,7 @@ const AdminDashboard = () => {
                       label="夥伴 Logo / 封面" 
                       value={logoUrl} 
                       onChange={setLogoUrl} 
+                      folder="partners"
                     />
                   </div>
                   <div className="col-span-2">
@@ -3132,6 +3135,7 @@ const AdminDashboard = () => {
                       key={editingPartner?.id || 'new_partner'} 
                       initialContent={editingPartner?.content} 
                       onChange={setEditorContent} 
+                      folder="partners"
                     />
                   </div>
                 </div>
@@ -3192,6 +3196,7 @@ const AdminDashboard = () => {
                       label="KOL 頭像" 
                       value={avatarUrl} 
                       onChange={setAvatarUrl} 
+                      folder="kol_avatars"
                     />
                   </div>
                   <div>
@@ -3216,6 +3221,7 @@ const AdminDashboard = () => {
                       label="媒體封面 / 圖片" 
                       value={imageUrl} 
                       onChange={setImageUrl} 
+                      folder="kol_reviews"
                     />
                   </div>
                   <div className="col-span-2">
@@ -3224,6 +3230,7 @@ const AdminDashboard = () => {
                       key={editingKOL?.id || 'new_kol'} 
                       initialContent={editingKOL?.content} 
                       onChange={setEditorContent} 
+                      folder="kol_reviews"
                     />
                   </div>
                 </div>
@@ -3296,6 +3303,7 @@ const AdminDashboard = () => {
                       label="優惠封面圖" 
                       value={imageUrl} 
                       onChange={setImageUrl} 
+                      folder="promotions"
                     />
                   </div>
                   <div className="col-span-2">
@@ -3574,7 +3582,7 @@ const AdminDashboard = () => {
                         onChange={async (e) => {
                           const file = e.target.files?.[0];
                           if (file) {
-                            const url = await uploadImage(file);
+                            const url = await uploadImage(file, 'locations');
                             setLocationImageUrl(url);
                           }
                         }}
