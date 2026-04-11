@@ -57,8 +57,7 @@ const queryClient = new QueryClient({
 import { cn } from './lib/utils';
 import type { Event, Brand, Partner, Location, Review, KOLReview, Promotion } from './types';
 
-import { APIProvider, Map, AdvancedMarker, Pin, InfoWindow, useMapsLibrary, useMap } from '@vis.gl/react-google-maps';
-import { MarkerClusterer } from '@googlemaps/markerclusterer';
+import { APIProvider, Map, AdvancedMarker, Pin, InfoWindow, useMapsLibrary } from '@vis.gl/react-google-maps';
 
 // --- Skeleton Loading 元件 ---
 const SkeletonCard = () => (
@@ -1305,10 +1304,19 @@ const MapPage = () => {
               disableDefaultUI={false}
               mapId={GOOGLE_MAPS_MAP_ID}
             >
-              <ClusteredMarkers
-                locations={filteredLocations}
-                onSelect={(loc) => setSelectedShop(loc)}
-              />
+              {filteredLocations.map((loc) => (
+                <AdvancedMarker
+                  key={loc.id}
+                  position={{ lat: loc.lat, lng: loc.lng }}
+                  onClick={() => setSelectedShop(loc)}
+                >
+                  <Pin 
+                    background={loc.category === 'BBQ' ? '#ef4444' : loc.category === 'Hotpot' ? '#f97316' : loc.category === 'Drink' ? '#06b6d4' : '#ea580c'} 
+                    glyphColor={'#fff'} 
+                    borderColor={'#fff'} 
+                  />
+                </AdvancedMarker>
+              ))}
             </Map>
           </div>
 
@@ -1922,49 +1930,6 @@ const PromotionsPage = () => {
       </div>
     </div>
   );
-};
-
-// --- Marker Clusterer 元件 ---
-const ClusteredMarkers = ({ locations, onSelect }: { locations: Location[], onSelect: (loc: Location) => void }) => {
-  const map = useMap();
-  const [clusterer, setClusterer] = React.useState<MarkerClusterer | null>(null);
-  const markersRef = React.useRef<Map<string, google.maps.marker.AdvancedMarkerElement>>(new Map());
-
-  useEffect(() => {
-    if (!map) return;
-    const c = new MarkerClusterer({ map });
-    setClusterer(c);
-    return () => { c.clearMarkers(); };
-  }, [map]);
-
-  useEffect(() => {
-    if (!clusterer || !map) return;
-    clusterer.clearMarkers();
-    markersRef.current.clear();
-
-    const newMarkers = locations.map(loc => {
-      const pin = document.createElement('div');
-      pin.className = 'cursor-pointer';
-      pin.innerHTML = `<div style="
-        background:${loc.category==='BBQ'?'#ef4444':loc.category==='Hotpot'?'#f97316':loc.category==='Drink'?'#06b6d4':'#ea580c'};
-        width:24px;height:24px;border-radius:50%;border:2px solid white;
-        box-shadow:0 2px 6px rgba(0,0,0,0.3);">
-      </div>`;
-
-      const marker = new google.maps.marker.AdvancedMarkerElement({
-        map,
-        position: { lat: loc.lat, lng: loc.lng },
-        content: pin,
-      });
-      marker.addListener('click', () => onSelect(loc));
-      markersRef.current.set(loc.id, marker);
-      return marker;
-    });
-
-    clusterer.addMarkers(newMarkers);
-  }, [locations, clusterer, map, onSelect]);
-
-  return null;
 };
 
 // --- Place Autocomplete Component ---
