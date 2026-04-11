@@ -2518,6 +2518,9 @@ const AdminDashboard = () => {
     setBulkImportRunning(true);
     setBulkImportProgress({ done: 0, total: lines.length, status: '準備中...', results: [] });
 
+    let _r=0;
+    while(!window.google?.maps?.places?.PlacesService&&_r<20){await new Promise(x=>setTimeout(x,500));_r++;}
+    if(!window.google?.maps?.places?.PlacesService){alert('請重新整理頁面後再試');setBulkImportRunning(false);return;}
     const mapDiv = document.createElement('div');
     document.body.appendChild(mapDiv);
     const map = new google.maps.Map(mapDiv, { center: { lat: 25.04, lng: 121.54 }, zoom: 14 });
@@ -4349,7 +4352,7 @@ export default function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-    <APIProvider apiKey={GOOGLE_MAPS_API_KEY} language="zh-TW">
+    <APIProvider apiKey={GOOGLE_MAPS_API_KEY} language="zh-TW" libraries={["places","marker"]}>
       <Router>
         <div className="min-h-screen bg-white font-sans text-stone-900">
           <Navbar />
