@@ -1998,6 +1998,7 @@ const AdminDashboard = () => {
   const [locationOrderUrl, setLocationOrderUrl] = useState('');
   const [locationBusinessHours, setLocationBusinessHours] = useState('');
   const [locationAvgPrice, setLocationAvgPrice] = useState('');
+  const [locationImageLoading, setLocationImageLoading] = useState(false);
 
   const [imageUrl, setImageUrl] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
@@ -3464,9 +3465,25 @@ const AdminDashboard = () => {
                       const summary = (place as any).editorial_summary;
                       if (summary && summary.overview) setLocationDescription(summary.overview);
                       if (place.photos && place.photos.length > 0) {
-                        // 取得 Google 第一張照片的 URL (1000px 寬度)
                         const photoUrl = place.photos[0].getUrl({ maxWidth: 1000 });
-                        setLocationImageUrl(photoUrl);
+                        setLocationImageLoading(true);
+                        setLocationImageUrl('');
+                        (async () => {
+                          try {
+                            const { data: fnData, error: fnError } = await supabase.functions.invoke('proxy-place-photo', {
+                              body: { photo_url: photoUrl }
+                            });
+                            if (fnData?.url) {
+                              setLocationImageUrl(fnData.url);
+                            } else {
+                              setLocationImageUrl(photoUrl);
+                            }
+                          } catch (err) {
+                            setLocationImageUrl(photoUrl);
+                          } finally {
+                            setLocationImageLoading(false);
+                          }
+                        })();
                       }
                     }} 
                   />
@@ -3570,10 +3587,11 @@ const AdminDashboard = () => {
                     <label className="block text-sm font-medium text-stone-700 mb-2">店家照片 URL</label>
                     <div className="flex gap-2">
                       <input 
-                        value={locationImageUrl} 
-                        onChange={(e) => setLocationImageUrl(e.target.value)}
+                        value={locationImageLoading ? '照片下載中，請稍候...' : locationImageUrl} 
+                        onChange={(e) => !locationImageLoading && setLocationImageUrl(e.target.value)}
                         placeholder="https://images.unsplash.com/..."
-                        className="flex-1 px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" 
+                        disabled={locationImageLoading}
+                        className="flex-1 px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600 disabled:bg-stone-50 disabled:text-stone-400" 
                       />
                       <input 
                         type="file" 
