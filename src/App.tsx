@@ -1311,20 +1311,30 @@ const MapPage = () => {
             >
               {filteredLocations.map((loc) => {
                 const isEventParticipant = loc.location_events && loc.location_events.length > 0;
+                const brand = (loc as any).brand;
                 const pinColor = loc.category === 'BBQ' ? '#ef4444' : loc.category === 'Hotpot' ? '#f97316' : loc.category === 'Drink' ? '#06b6d4' : '#ea580c';
                 return (
                   <AdvancedMarker
                     key={loc.id}
                     position={{ lat: loc.lat, lng: loc.lng }}
                     onClick={() => setSelectedShop(loc)}
-                    zIndex={isEventParticipant ? 10 : 1}
+                    zIndex={brand ? 15 : isEventParticipant ? 10 : 1}
                   >
-                    <Pin 
-                      background={pinColor}
-                      glyphColor={'#fff'}
-                      borderColor={isEventParticipant ? '#FFD700' : '#fff'}
-                      scale={isEventParticipant ? 1.4 : 1.0}
-                    />
+                    {brand && brand.logo_url ? (
+                      <div className="flex flex-col items-center">
+                        <div className="w-10 h-10 rounded-full bg-white shadow-lg border-2 border-orange-500 overflow-hidden flex items-center justify-center">
+                          <img src={brand.logo_url} alt={brand.name} className="w-8 h-8 rounded-full object-contain" referrerPolicy="no-referrer" />
+                        </div>
+                        <div className="w-0 h-0 border-l-[6px] border-r-[6px] border-t-[8px] border-l-transparent border-r-transparent border-t-orange-500 -mt-[1px]" />
+                      </div>
+                    ) : (
+                      <Pin
+                        background={pinColor}
+                        glyphColor={'#fff'}
+                        borderColor={isEventParticipant ? '#FFD700' : '#fff'}
+                        scale={isEventParticipant ? 1.4 : 1.0}
+                      />
+                    )}
                   </AdvancedMarker>
                 );
               })}
@@ -2528,6 +2538,8 @@ const AdminDashboard = () => {
     const svc = new google.maps.places.PlacesService(map);
 
     const results: { name: string; ok: boolean; msg: string }[] = [];
+    // 追蹤本次批次已匯入的店家（避免同批次重複）
+    const batchImported: { name: string; lat: number; lng: number }[] = [];
 
     for (let i = 0; i < lines.length; i++) {
       const query = lines[i];
@@ -2542,6 +2554,36 @@ const AdminDashboard = () => {
 
         if (!placeResult) {
           results.push({ name: query, ok: false, msg: '找不到地點' });
+          continue;
+        }
+
+        const placeName = placeResult.name || query;
+        const placeLat = placeResult.geometry?.location?.lat() || 0;
+        const placeLng = placeResult.geometry?.location?.lng() || 0;
+
+        // 檢查是否與現有店家重複（名稱相同 或 經緯度 < 10 公尺）
+        const existingDup = locations.find(loc => {
+          if (loc.name === placeName) return true;
+          const latDiff = Math.abs(loc.lat - placeLat);
+          const lngDiff = Math.abs(loc.lng - placeLng);
+          return latDiff < 0.0001 && lngDiff < 0.0001;
+        });
+
+        if (existingDup) {
+          results.push({ name: placeName, ok: false, msg: `⚠️ 已存在：「${existingDup.name}」，跳過` });
+          continue;
+        }
+
+        // 檢查是否與本次批次內已匯入的重複
+        const batchDup = batchImported.find(b => {
+          if (b.name === placeName) return true;
+          const latDiff = Math.abs(b.lat - placeLat);
+          const lngDiff = Math.abs(b.lng - placeLng);
+          return latDiff < 0.0001 && lngDiff < 0.0001;
+        });
+
+        if (batchDup) {
+          results.push({ name: placeName, ok: false, msg: `⚠️ 本次批次已匯入「${batchDup.name}」，跳過` });
           continue;
         }
 
@@ -2573,13 +2615,13 @@ const AdminDashboard = () => {
         const matchedDist = matchedCity ? (TAIWAN_DISTRICTS[matchedCity].find(d => district.includes(d.replace(/[區鄉鎮市]/g, '')) || addr.includes(d)) || '') : '';
 
         const locData = {
-          name: placeResult.name || query,
+          name: placeName,
           category: locationCategory,
           city: matchedCity,
           district: matchedDist,
           address: addr,
-          lat: placeResult.geometry?.location?.lat() || 0,
-          lng: placeResult.geometry?.location?.lng() || 0,
+          lat: placeLat,
+          lng: placeLng,
           phone: (placeResult as any).international_phone_number || '',
           image_url: imageUrl,
           description: (placeResult as any).editorial_summary?.overview || '',
@@ -2592,11 +2634,14 @@ const AdminDashboard = () => {
         };
 
         const { error } = await supabase.from('locations').insert([locData]);
-        if (error) { results.push({ name: locData.name, ok: false, msg: error.message }); }
-        else { results.push({ name: locData.name, ok: true, msg: '已新增' }); }
+        if (error) { results.push({ name: locData.name, ok: false, msg: `❌ ${error.message}` }); }
+        else {
+          results.push({ name: locData.name, ok: true, msg: '✅ 已新增' });
+          batchImported.push({ name: locData.name, lat: locData.lat, lng: locData.lng });
+        }
 
       } catch (e: any) {
-        results.push({ name: query, ok: false, msg: e.message });
+        results.push({ name: query, ok: false, msg: `❌ ${e.message}` });
       }
 
       await new Promise(r => setTimeout(r, 600));
@@ -2643,15 +2688,20 @@ const AdminDashboard = () => {
       avg_price: locationAvgPrice,
     };
 
-    // Check for duplicates
-    const isDuplicate = locations.some(loc => 
-      loc.name === locationName && 
-      loc.address === locationAddress && 
-      loc.id !== editingLocation?.id
-    );
+    // Check for duplicates (name+address or nearby coordinates)
+    const duplicateLoc = locations.find(loc => {
+      if (loc.id === editingLocation?.id) return false;
+      // 名稱 + 地址完全相同
+      if (loc.name === locationName && loc.address === locationAddress) return true;
+      // 經緯度差距 < 0.0001（約 10 公尺內）視為同一地點
+      const latDiff = Math.abs(loc.lat - locationData.lat);
+      const lngDiff = Math.abs(loc.lng - locationData.lng);
+      if (latDiff < 0.0001 && lngDiff < 0.0001) return true;
+      return false;
+    });
 
-    if (isDuplicate) {
-      alert('該店家已存在 (店名與地址重複)');
+    if (duplicateLoc) {
+      alert(`該店家可能已存在：「${duplicateLoc.name}」(${duplicateLoc.address})\n\n請確認是否為同一間店。`);
       return;
     }
 
