@@ -489,7 +489,7 @@ const Home = () => {
                 <div className="absolute top-4 right-4 bg-orange-600 text-white px-3 py-1 rounded-full text-xs font-bold z-10">
                   進行中
                 </div>
-                <SafeImage src={event.image_url} className="w-full aspect-[4/3] object-cover" alt={event.title} />
+                <SafeImage src={event.image_url} className="w-full h-56 object-cover object-center" alt={event.title} />
                 <div className="p-8">
                   <h3 className="text-2xl font-bold mb-3">{event.title}</h3>
                   <p className="text-stone-500 text-sm mb-6 line-clamp-2">{event.description}</p>
@@ -507,7 +507,7 @@ const Home = () => {
                 whileHover={{ y: -10 }}
                 className="bg-stone-50 rounded-3xl overflow-hidden border border-stone-100"
               >
-                <SafeImage src={event.image_url} className="w-full aspect-[4/3] object-cover opacity-80" alt={event.title} />
+                <SafeImage src={event.image_url} className="w-full h-56 object-cover object-center opacity-80" alt={event.title} />
                 <div className="p-8">
                   <h3 className="text-xl font-bold mb-3">{event.title}</h3>
                   <p className="text-stone-500 text-sm mb-6 line-clamp-2">{event.description}</p>
@@ -686,8 +686,8 @@ const EventsPage = () => {
               whileHover={{ y: -10 }}
               className="bg-white rounded-3xl overflow-hidden shadow-sm border border-stone-100 group"
             >
-              <div className="relative aspect-[4/3] overflow-hidden">
-                <SafeImage src={event.image_url} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt={event.title} />
+              <div className="relative h-64 overflow-hidden">
+                <SafeImage src={event.image_url} className="w-full h-full object-cover object-center group-hover:scale-110 transition-transform duration-500" alt={event.title} />
                 <div className="absolute top-4 right-4">
                   <span className={cn(
                     "px-3 py-1 rounded-full text-xs font-bold text-white shadow-lg",
@@ -1340,7 +1340,7 @@ const MapPage = () => {
                 transition={{ type: "spring", damping: 25, stiffness: 200 }}
                 className="absolute top-4 bottom-4 left-4 w-[calc(100%-32px)] sm:w-96 bg-white rounded-2xl shadow-2xl border border-stone-200 overflow-hidden flex flex-col z-10"
               >
-                <div className="relative aspect-video bg-stone-100 shrink-0">
+                <div className="relative h-48 bg-stone-100 shrink-0">
                   {selectedShop.image_url ? (
                   <SafeImage 
                     src={selectedShop.image_url} 
@@ -1606,7 +1606,7 @@ const MapPage = () => {
                   window.scrollTo({ top: 0, behavior: 'smooth' });
                 }}
               >
-                <div className="relative aspect-[4/3] overflow-hidden">
+                <div className="relative h-48 overflow-hidden">
                   {loc.image_url ? (
                   <SafeImage 
                     src={loc.image_url} 
@@ -1924,8 +1924,8 @@ const PromotionsPage = () => {
               whileInView={{ opacity: 1, y: 0 }}
               className="bg-white rounded-3xl overflow-hidden shadow-sm border border-stone-100 flex flex-col"
             >
-              <div className="relative aspect-[4/3]">
-                <SafeImage src={promo.image_url} className="w-full h-full object-cover" alt={promo.title} />
+              <div className="relative h-48">
+                <SafeImage src={promo.image_url} className="w-full h-full object-contain bg-stone-50" alt={promo.title} />
                 <div className="absolute top-4 left-4 bg-orange-600 text-white px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 shadow-lg">
                   <Tag className="w-3 h-3" /> 限時優惠
                 </div>
