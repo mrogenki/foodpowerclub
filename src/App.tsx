@@ -2427,8 +2427,7 @@ const AdminDashboard = () => {
   };
 
   const handleBulkImport = async () => {
-    const lines = bulkImportText.split('
-').map(l => l.trim()).filter(Boolean);
+    const lines = bulkImportText.split(/\r?\n/).map((l: string) => l.trim()).filter(Boolean);
     if (!lines.length) return;
     setBulkImportRunning(true);
     setBulkImportProgress({ done: 0, total: lines.length, status: '準備中...', results: [] });
