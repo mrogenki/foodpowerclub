@@ -643,7 +643,7 @@ const Home = () => {
                 to={`/partner/${partner.id}`}
                 className="flex flex-col items-center group transition-opacity"
               >
-                <SafeImage src={partner.logo_url} fallback={DEFAULT_LOGO} className="w-16 h-16 object-contain mb-4 transition-all" alt={partner.name} />
+                <SafeImage src={partner.logo_url} fallback={DEFAULT_LOGO} className="h-20 w-auto max-w-[140px] object-contain mb-4 transition-all" alt={partner.name} optimize={false} />
                 <span className="text-[10px] uppercase tracking-widest font-bold text-stone-600 group-hover:text-orange-600 transition-colors">{partner.name}</span>
               </Link>
             ))}
@@ -839,7 +839,7 @@ const EventDetail = () => {
                     to={`/partner/${partner.id}`}
                     className="flex items-center gap-4 p-4 bg-stone-50 rounded-2xl hover:bg-stone-100 transition-colors group"
                   >
-                    <SafeImage src={partner.logo_url} fallback={DEFAULT_LOGO} className="w-12 h-12 rounded-xl object-cover shadow-sm" alt={partner.name} />
+                    <SafeImage src={partner.logo_url} fallback={DEFAULT_LOGO} className="w-12 h-12 rounded-xl object-contain shadow-sm" alt={partner.name} optimize={false} />
                     <div>
                       <h4 className="font-bold text-sm text-stone-800 group-hover:text-orange-600 transition-colors">{partner.name}</h4>
                       <p className="text-[10px] uppercase tracking-widest text-stone-400 font-bold">{partner.type}</p>
@@ -1073,7 +1073,7 @@ const PartnerDetail = () => {
           {/* Partner Header */}
           <div className="p-8 md:p-12 border-b border-stone-50 bg-gradient-to-br from-white to-stone-50">
             <div className="flex flex-col md:flex-row items-center gap-8">
-              <SafeImage src={partner.logo_url} fallback={DEFAULT_LOGO} className="w-32 h-32 rounded-3xl object-cover shadow-xl border-4 border-white" alt={partner.name} />
+              <SafeImage src={partner.logo_url} fallback={DEFAULT_LOGO} className="w-32 h-32 rounded-3xl object-contain shadow-xl border-4 border-white" alt={partner.name} optimize={false} />
               <div className="text-center md:text-left">
                 <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 mb-4">
                   <span className="px-4 py-1 bg-stone-100 text-stone-600 rounded-full text-xs font-bold uppercase tracking-widest">
@@ -1720,7 +1720,7 @@ const PartnersPage = () => {
               to={`/partner/${partner.id}`}
               className="bg-white p-8 rounded-3xl border border-stone-100 shadow-sm hover:shadow-md transition-all group block"
             >
-              <SafeImage src={partner.logo_url} fallback={DEFAULT_LOGO} className="w-20 h-20 rounded-2xl object-cover mb-6 bg-stone-50" alt={partner.name} />
+              <SafeImage src={partner.logo_url} fallback={DEFAULT_LOGO} className="w-20 h-20 rounded-2xl object-contain mb-6 bg-stone-50" alt={partner.name} optimize={false} />
               <h3 className="text-xl font-bold mb-2 group-hover:text-orange-600 transition-colors">{partner.name}</h3>
               <p className="text-orange-600 text-sm font-medium mb-4">{partner.type}</p>
               <div className="text-stone-500 text-sm leading-relaxed line-clamp-3">
@@ -2997,7 +2997,7 @@ const AdminDashboard = () => {
                       {partners.map(partner => (
                         <tr key={partner.id} className="group">
                           <td className="py-4 font-medium flex items-center gap-3">
-                            <SafeImage src={partner.logo_url} className="w-8 h-8 rounded-full object-cover bg-stone-50" alt="" />
+                            <SafeImage src={partner.logo_url} className="w-8 h-8 rounded-full object-contain bg-stone-50" alt="" optimize={false} />
                             {partner.name}
                           </td>
                           <td className="py-4 text-sm">{partner.type}</td>
