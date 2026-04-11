@@ -1,6 +1,6 @@
 /// <reference types="@types/google.maps" />
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { HashRouter as Router, Routes, Route, Link, useNavigate, useParams } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Link, useNavigate, useParams } from 'react-router-dom';
 import { 
   Utensils, 
   Calendar, 
@@ -42,6 +42,18 @@ import "@blocknote/mantine/style.css";
 import { MantineProvider } from "@mantine/core";
 import "@mantine/core/styles.css";
 import { supabase } from './lib/supabase';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000, // 5 分鐘內不重複 fetch
+      gcTime: 10 * 60 * 1000,   // 10 分鐘後清除快取
+      retry: 2,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 import { cn } from './lib/utils';
 import type { Event, Brand, Partner, Location, Review, KOLReview, Promotion } from './types';
 
@@ -53,6 +65,14 @@ const DEFAULT_LOGO = "https://placehold.co/400x400/orange/white?text=Logo";
 const DEFAULT_AVATAR = "https://placehold.co/100x100/stone/white?text=KOL";
 
 // --- Utilities ---
+
+// Supabase Storage 圖片轉換（自動縮圖 + WebP）
+const optimizeImageUrl = (url: string, width: number = 800): string => {
+  if (!url || !url.includes('supabase.co/storage')) return url;
+  return url
+    .replace('/object/public/', '/render/image/public/')
+    + `?width=${width}&quality=80&format=webp`;
+};
 
 const uploadImage = async (file: File, folder: string = 'uploads') => {
   const fileExt = file.name.split('.').pop();
@@ -121,12 +141,13 @@ const BlockRenderer = ({ content }: { content: string }) => {
   );
 };
 
-const SafeImage = ({ src, alt, className, fallback = DEFAULT_EVENT_IMAGE, ...props }: any) => {
-  const [imgSrc, setImgSrc] = useState(src || fallback);
+const SafeImage = ({ src, alt, className, fallback = DEFAULT_EVENT_IMAGE, optimize = true, width = 800, ...props }: any) => {
+  const optimized = optimize ? optimizeImageUrl(src || '', width) : (src || '');
+  const [imgSrc, setImgSrc] = useState(optimized || fallback);
 
   useEffect(() => {
-    setImgSrc(src || fallback);
-  }, [src, fallback]);
+    setImgSrc((optimize ? optimizeImageUrl(src || '', width) : (src || '')) || fallback);
+  }, [src, fallback, optimize, width]);
 
   return (
     <img
@@ -1171,10 +1192,11 @@ const Login = () => {
   );
 };
 
-const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || 'AIzaSyC6Fvho40AkRKwXx2wueWdPU3bzN7ZY6a0';
+const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
 const GOOGLE_MAPS_MAP_ID = import.meta.env.VITE_GOOGLE_MAPS_MAP_ID || 'DEMO_MAP_ID';
 
 import { TAIWAN_DISTRICTS } from './constants/taiwanDistricts';
+
 
 const MapPage = () => {
   const [selectedShop, setSelectedShop] = useState<Location | null>(null);
@@ -1545,6 +1567,7 @@ const MapPage = () => {
                   <SafeImage 
                     src={loc.image_url} 
                     alt={loc.name}
+                    width={400}
                     className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                   />
                   ) : (
@@ -3738,6 +3761,7 @@ export default function App() {
   }
 
   return (
+    <QueryClientProvider client={queryClient}>
     <APIProvider apiKey={GOOGLE_MAPS_API_KEY} language="zh-TW">
       <Router>
         <div className="min-h-screen bg-white font-sans text-stone-900">
@@ -3769,5 +3793,6 @@ export default function App() {
         </div>
       </Router>
     </APIProvider>
+    </QueryClientProvider>
   );
 }
