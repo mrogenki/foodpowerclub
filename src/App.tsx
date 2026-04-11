@@ -1227,7 +1227,7 @@ const MapPage = () => {
         setLoadingLocations(true);
         const { data, error } = await supabase
           .from('locations')
-          .select('*, location_events(event_id, events(id, title, type))');
+          .select('*, location_events(event_id, events(id, title, type)), brand:brands(id, name, logo_url)');
         if (error) throw error;
         if (data) setLocations(data);
       } catch (error: any) {
@@ -1651,6 +1651,15 @@ const MapPage = () => {
                       <span className="text-xs font-bold">{(loc.rating || 5).toFixed(1)}</span>
                     </div>
                   </div>
+                  {(loc as any).brand && (
+                    <div className="flex items-center gap-1.5 mb-2">
+                      {(loc as any).brand.logo_url && (
+                        <SafeImage src={(loc as any).brand.logo_url} alt={(loc as any).brand.name}
+                          className="w-4 h-4 rounded-full object-cover" fallback={DEFAULT_LOGO} optimize={false} />
+                      )}
+                      <span className="text-xs font-bold text-orange-600">{(loc as any).brand.name}</span>
+                    </div>
+                  )}
                   <p className="text-xs text-stone-500 flex items-center gap-1 mb-4">
                     <MapPin className="w-3 h-3" /> {loc.address}
                   </p>
@@ -2029,6 +2038,13 @@ const AdminDashboard = () => {
   const [editingPromotion, setEditingPromotion] = useState<Promotion | null>(null);
 
   const [showLocationModal, setShowLocationModal] = useState(false);
+  // 品牌分店管理 modal
+  const [showBrandLocationsModal, setShowBrandLocationsModal] = useState(false);
+  const [managingBrand, setManagingBrand] = useState<Brand | null>(null);
+  const [brandLinkedLocationIds, setBrandLinkedLocationIds] = useState<string[]>([]);
+  const [brandLocationSearch, setBrandLocationSearch] = useState('');
+  const [savingBrandLocations, setSavingBrandLocations] = useState(false);
+
   // 活動店家管理 modal
   const [showEventLocationsModal, setShowEventLocationsModal] = useState(false);
   const [managingEvent, setManagingEvent] = useState<Event | null>(null);
@@ -2426,6 +2442,39 @@ const AdminDashboard = () => {
       const { error } = await supabase.from('promotions').delete().eq('id', id);
       if (error) alert(`刪除失敗: ${error.message}`);
       else fetchData();
+    }
+  };
+
+  const handleOpenBrandLocations = async (brand: Brand) => {
+    setManagingBrand(brand);
+    setBrandLocationSearch('');
+    // 載入這個品牌已有的分店
+    const { data } = await supabase.from('locations').select('id').eq('brand_id', brand.id);
+    setBrandLinkedLocationIds(data?.map(r => r.id) || []);
+    // 確保 locations 已載入
+    if (locations.length === 0) {
+      const { data: locs } = await supabase.from('locations').select('id, name, category, city, district, brand_id');
+      if (locs) setLocations(locs as any);
+    }
+    setShowBrandLocationsModal(true);
+  };
+
+  const handleSaveBrandLocations = async () => {
+    if (!managingBrand) return;
+    setSavingBrandLocations(true);
+    try {
+      // 先把之前此品牌的所有分店清除綁定
+      await supabase.from('locations').update({ brand_id: null }).eq('brand_id', managingBrand.id);
+      // 重新綁定選取的分店
+      if (brandLinkedLocationIds.length > 0) {
+        await supabase.from('locations').update({ brand_id: managingBrand.id }).in('id', brandLinkedLocationIds);
+      }
+      setShowBrandLocationsModal(false);
+      setManagingBrand(null);
+    } catch (e) {
+      alert('儲存失敗');
+    } finally {
+      setSavingBrandLocations(false);
     }
   };
 
@@ -2886,6 +2935,13 @@ const AdminDashboard = () => {
                           </td>
                           <td className="py-4 text-right">
                             <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button
+                                onClick={() => handleOpenBrandLocations(brand)}
+                                className="px-2 py-1 text-xs font-bold text-orange-600 hover:bg-orange-50 rounded-lg flex items-center gap-1 transition-colors"
+                                title="管理品牌分店"
+                              >
+                                <MapPin className="w-3 h-3" /> 分店
+                              </button>
                               <button 
                                 onClick={() => { setEditingBrand(brand); setShowBrandModal(true); }}
                                 className="p-2 text-stone-400 hover:text-orange-600"
@@ -3554,6 +3610,111 @@ const AdminDashboard = () => {
                   <button type="submit" className="flex-1 px-6 py-3 rounded-xl bg-orange-600 text-white font-bold hover:bg-orange-500 transition-colors">儲存優惠</button>
                 </div>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Brand Locations Modal */}
+      <AnimatePresence>
+        {showBrandLocationsModal && managingBrand && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => !savingBrandLocations && setShowBrandLocationsModal(false)}
+              className="absolute inset-0 bg-stone-900/60 backdrop-blur-sm" />
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
+              className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden max-h-[85vh] flex flex-col">
+
+              {/* Header */}
+              <div className="p-6 border-b border-stone-100 flex justify-between items-start shrink-0">
+                <div className="flex items-center gap-3">
+                  {managingBrand.logo_url && (
+                    <SafeImage src={managingBrand.logo_url} alt={managingBrand.name}
+                      className="w-10 h-10 rounded-xl object-cover border border-stone-100" fallback={DEFAULT_LOGO} optimize={false} />
+                  )}
+                  <div>
+                    <h3 className="text-xl font-bold text-stone-900">{managingBrand.name}</h3>
+                    <p className="text-sm text-stone-400 mt-0.5">勾選此品牌的分店，地圖上會顯示品牌名稱</p>
+                  </div>
+                </div>
+                <button onClick={() => setShowBrandLocationsModal(false)} className="text-stone-400 hover:text-stone-600">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              {/* 統計 */}
+              <div className="px-6 py-3 bg-orange-50 border-b border-orange-100 shrink-0 flex items-center justify-between">
+                <span className="text-sm text-orange-700">
+                  已選 <strong>{brandLinkedLocationIds.length}</strong> 家分店
+                </span>
+                <button onClick={() => setBrandLinkedLocationIds([])} className="text-xs text-stone-400 hover:text-red-500 transition-colors">
+                  清除全部
+                </button>
+              </div>
+
+              {/* 搜尋 */}
+              <div className="px-6 py-3 border-b border-stone-100 shrink-0">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
+                  <input type="text" placeholder="搜尋店家名稱或地區..."
+                    value={brandLocationSearch} onChange={e => setBrandLocationSearch(e.target.value)}
+                    className="w-full pl-9 pr-4 py-2 bg-stone-50 rounded-xl border border-stone-200 text-sm outline-none focus:ring-2 focus:ring-orange-500/20" />
+                </div>
+              </div>
+
+              {/* 店家列表 */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-1">
+                {locations
+                  .filter(loc => !brandLocationSearch ||
+                    loc.name.toLowerCase().includes(brandLocationSearch.toLowerCase()) ||
+                    (loc.city + loc.district).includes(brandLocationSearch))
+                  .map(loc => {
+                    const isLinked = brandLinkedLocationIds.includes(loc.id);
+                    const otherBrand = (loc as any).brand && (loc as any).brand.id !== managingBrand.id ? (loc as any).brand.name : null;
+                    return (
+                      <label key={loc.id} className={cn(
+                        'flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-colors border',
+                        isLinked ? 'bg-orange-50 border-orange-200' : 'hover:bg-stone-50 border-transparent'
+                      )}>
+                        <input type="checkbox" checked={isLinked}
+                          onChange={e => {
+                            if (e.target.checked) setBrandLinkedLocationIds([...brandLinkedLocationIds, loc.id]);
+                            else setBrandLinkedLocationIds(brandLinkedLocationIds.filter(id => id !== loc.id));
+                          }}
+                          className="w-4 h-4 accent-orange-600 shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-bold text-stone-800 truncate">{loc.name}</p>
+                            {otherBrand && (
+                              <span className="text-[10px] text-stone-400 bg-stone-100 px-1.5 py-0.5 rounded-full shrink-0">
+                                已屬於 {otherBrand}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-stone-400">{loc.city}{loc.district}</p>
+                        </div>
+                        <span className={cn(
+                          'px-2 py-0.5 rounded-full text-[10px] font-bold text-white shrink-0',
+                          loc.category === 'BBQ' ? 'bg-orange-600' : loc.category === 'Hotpot' ? 'bg-red-600' : loc.category === 'Bento' ? 'bg-emerald-600' : 'bg-blue-600'
+                        )}>
+                          {loc.category === 'BBQ' ? '燒肉' : loc.category === 'Hotpot' ? '火鍋' : loc.category === 'Bento' ? '便當' : '手搖'}
+                        </span>
+                      </label>
+                    );
+                  })}
+              </div>
+
+              {/* Footer */}
+              <div className="p-4 border-t border-stone-100 flex gap-3 shrink-0 bg-white">
+                <button onClick={() => setShowBrandLocationsModal(false)}
+                  className="flex-1 py-3 rounded-xl border border-stone-200 font-bold text-stone-600 hover:bg-stone-50">
+                  取消
+                </button>
+                <button onClick={handleSaveBrandLocations} disabled={savingBrandLocations}
+                  className="flex-1 py-3 rounded-xl bg-orange-600 text-white font-bold hover:bg-orange-500 disabled:opacity-50">
+                  {savingBrandLocations ? '儲存中...' : `儲存（${brandLinkedLocationIds.length} 家分店）`}
+                </button>
+              </div>
             </motion.div>
           </div>
         )}
