@@ -1219,12 +1219,15 @@ const MapPage = () => {
   const [activeDistrict, setActiveDistrict] = useState<string>('全部');
   const [locations, setLocations] = useState<Location[]>([]);
   const [loadingLocations, setLoadingLocations] = useState(true);
+  const [filterEventOnly, setFilterEventOnly] = useState(false);
 
   useEffect(() => {
     const fetchLocations = async () => {
       try {
         setLoadingLocations(true);
-        const { data, error } = await supabase.from('locations').select('*');
+        const { data, error } = await supabase
+          .from('locations')
+          .select('*, location_events(event_id, events(id, title, type))');
         if (error) throw error;
         if (data) setLocations(data);
       } catch (error: any) {
@@ -1268,7 +1271,8 @@ const MapPage = () => {
     // District matching
     const matchDistrict = activeDistrict === '全部' || loc.district === activeDistrict;
     
-    return matchCategory && matchCity && matchDistrict;
+    const matchEvent = !filterEventOnly || (loc.location_events && loc.location_events.length > 0);
+    return matchCategory && matchCity && matchDistrict && matchEvent;
   });
 
   useEffect(() => {
@@ -1304,19 +1308,25 @@ const MapPage = () => {
               disableDefaultUI={false}
               mapId={GOOGLE_MAPS_MAP_ID}
             >
-              {filteredLocations.map((loc) => (
-                <AdvancedMarker
-                  key={loc.id}
-                  position={{ lat: loc.lat, lng: loc.lng }}
-                  onClick={() => setSelectedShop(loc)}
-                >
-                  <Pin 
-                    background={loc.category === 'BBQ' ? '#ef4444' : loc.category === 'Hotpot' ? '#f97316' : loc.category === 'Drink' ? '#06b6d4' : '#ea580c'} 
-                    glyphColor={'#fff'} 
-                    borderColor={'#fff'} 
-                  />
-                </AdvancedMarker>
-              ))}
+              {filteredLocations.map((loc) => {
+                const isEventParticipant = loc.location_events && loc.location_events.length > 0;
+                const pinColor = loc.category === 'BBQ' ? '#ef4444' : loc.category === 'Hotpot' ? '#f97316' : loc.category === 'Drink' ? '#06b6d4' : '#ea580c';
+                return (
+                  <AdvancedMarker
+                    key={loc.id}
+                    position={{ lat: loc.lat, lng: loc.lng }}
+                    onClick={() => setSelectedShop(loc)}
+                    zIndex={isEventParticipant ? 10 : 1}
+                  >
+                    <Pin 
+                      background={pinColor}
+                      glyphColor={'#fff'}
+                      borderColor={isEventParticipant ? '#FFD700' : '#fff'}
+                      scale={isEventParticipant ? 1.4 : 1.0}
+                    />
+                  </AdvancedMarker>
+                );
+              })}
             </Map>
           </div>
 
@@ -1478,6 +1488,20 @@ const MapPage = () => {
 
         {/* Filters */}
         <div className="space-y-6 mb-12">
+          {/* Event Filter Toggle */}
+          <div className="flex items-center justify-between bg-orange-50 border border-orange-200 rounded-2xl px-5 py-4">
+            <div>
+              <h4 className="text-sm font-bold text-orange-900">只看活動參與店家</h4>
+              <p className="text-xs text-orange-600 mt-0.5">顯示有參加燒肉祭、火鍋祭等活動的店家</p>
+            </div>
+            <button
+              onClick={() => setFilterEventOnly(!filterEventOnly)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${filterEventOnly ? 'bg-orange-600' : 'bg-stone-300'}`}
+            >
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${filterEventOnly ? 'translate-x-6' : 'translate-x-1'}`} />
+            </button>
+          </div>
+
           {/* Category Filter */}
           <div>
             <h4 className="text-xs font-bold text-stone-400 uppercase tracking-widest mb-4">種類篩選</h4>
@@ -1595,7 +1619,7 @@ const MapPage = () => {
                       <ImageIcon className="w-12 h-12" />
                     </div>
                   )}
-                  <div className="absolute top-4 left-4">
+                  <div className="absolute top-4 left-4 flex flex-col gap-1">
                     <span className={cn(
                       "px-3 py-1 rounded-full text-[10px] font-bold text-white shadow-lg",
                       loc.category === 'BBQ' ? "bg-orange-600" : 
@@ -1607,6 +1631,11 @@ const MapPage = () => {
                        loc.category === 'Bento' ? '便當' : 
                        loc.category === 'Drink' ? '手搖' : loc.category}
                     </span>
+                    {loc.location_events?.map((le: any) => le.events).filter(Boolean).map((ev: any) => (
+                      <span key={ev.id} className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-yellow-400 text-yellow-900 shadow-lg flex items-center gap-1">
+                        ⭐ {ev.title}
+                      </span>
+                    ))}
                   </div>
                   <div className="absolute top-4 right-4">
                     <span className="px-3 py-1 bg-white/90 backdrop-blur-md rounded-full text-[10px] font-bold text-stone-600 shadow-sm">
@@ -2046,6 +2075,7 @@ const AdminDashboard = () => {
   const [locationBusinessHours, setLocationBusinessHours] = useState('');
   const [locationAvgPrice, setLocationAvgPrice] = useState('');
   const [locationImageLoading, setLocationImageLoading] = useState(false);
+  const [locationEventIds, setLocationEventIds] = useState<string[]>([]);
 
   const [imageUrl, setImageUrl] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
@@ -2109,6 +2139,8 @@ const AdminDashboard = () => {
       setLocationOrderUrl(editingLocation.order_url || '');
       setLocationBusinessHours(editingLocation.business_hours || '');
       setLocationAvgPrice(editingLocation.avg_price || '');
+      supabase.from('location_events').select('event_id').eq('location_id', editingLocation.id)
+        .then(({ data }) => { setLocationEventIds(data?.map(r => r.event_id) || []); });
     } else {
       setEditorContent('');
       setImageUrl('');
@@ -2552,8 +2584,18 @@ const AdminDashboard = () => {
     }
     
     console.log('Location saved successfully');
+    const savedId = editingLocation?.id;
+    if (savedId) {
+      await supabase.from('location_events').delete().eq('location_id', savedId);
+      if (locationEventIds.length > 0) {
+        await supabase.from('location_events').insert(
+          locationEventIds.map(eid => ({ location_id: savedId, event_id: eid }))
+        );
+      }
+    }
     setShowLocationModal(false);
     setEditingLocation(null);
+    setLocationEventIds([]);
     fetchData();
   };
 
@@ -3908,6 +3950,34 @@ const AdminDashboard = () => {
                       rows={3}
                       className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" 
                     />
+                  </div>
+
+                  <div className="col-span-2">
+                    <label className="block text-sm font-medium text-stone-700 mb-3">
+                      參加活動 <span className="text-stone-400 font-normal text-xs">（勾選後在地圖上會特別標示）</span>
+                    </label>
+                    <div className="space-y-2">
+                      {allEvents.map(event => (
+                        <label key={event.id} className="flex items-center gap-3 p-3 rounded-xl border border-stone-100 hover:bg-orange-50 cursor-pointer transition-colors">
+                          <input
+                            type="checkbox"
+                            checked={locationEventIds.includes(event.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setLocationEventIds([...locationEventIds, event.id]);
+                              } else {
+                                setLocationEventIds(locationEventIds.filter(id => id !== event.id));
+                              }
+                            }}
+                            className="w-4 h-4 accent-orange-600"
+                          />
+                          <span className="text-sm font-medium text-stone-700">{event.title}</span>
+                        </label>
+                      ))}
+                      {allEvents.length === 0 && (
+                        <p className="text-sm text-stone-400">尚無活動可選擇</p>
+                      )}
+                    </div>
                   </div>
                 </div>
                 <div className="pt-6 flex gap-4">
