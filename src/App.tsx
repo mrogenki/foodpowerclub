@@ -82,10 +82,11 @@ const DEFAULT_AVATAR = "https://placehold.co/100x100/stone/white?text=KOL";
 const optimizeImageUrl = (url: string, width: number = 800): string => {
   if (!url || !url.includes('supabase.co/storage/v1/object/public/')) return url;
   // Supabase Image Transformation: /object/public/ → /render/image/public/
+  // resize=contain 保持原始比例不裁切
   return url.replace(
     '/storage/v1/object/public/',
     '/storage/v1/render/image/public/'
-  ) + `?width=${width}&quality=80`;
+  ) + `?width=${width}&quality=80&resize=contain`;
 };
 
 const uploadImage = async (file: File, folder: string = 'uploads') => {
@@ -643,7 +644,7 @@ const Home = () => {
                 to={`/partner/${partner.id}`}
                 className="flex flex-col items-center group transition-opacity"
               >
-                <SafeImage src={partner.logo_url} fallback={DEFAULT_LOGO} className="h-20 w-auto max-w-[140px] object-contain mb-4 transition-all" alt={partner.name} optimize={false} />
+                <SafeImage src={partner.logo_url} fallback={DEFAULT_LOGO} className="h-20 w-auto max-w-[140px] object-contain mb-4 transition-all" alt={partner.name} />
                 <span className="text-[10px] uppercase tracking-widest font-bold text-stone-600 group-hover:text-orange-600 transition-colors">{partner.name}</span>
               </Link>
             ))}
@@ -839,7 +840,7 @@ const EventDetail = () => {
                     to={`/partner/${partner.id}`}
                     className="flex items-center gap-4 p-4 bg-stone-50 rounded-2xl hover:bg-stone-100 transition-colors group"
                   >
-                    <SafeImage src={partner.logo_url} fallback={DEFAULT_LOGO} className="w-12 h-12 rounded-xl object-contain shadow-sm" alt={partner.name} optimize={false} />
+                    <SafeImage src={partner.logo_url} fallback={DEFAULT_LOGO} className="w-12 h-12 rounded-xl object-contain shadow-sm" alt={partner.name} />
                     <div>
                       <h4 className="font-bold text-sm text-stone-800 group-hover:text-orange-600 transition-colors">{partner.name}</h4>
                       <p className="text-[10px] uppercase tracking-widest text-stone-400 font-bold">{partner.type}</p>
@@ -1073,7 +1074,7 @@ const PartnerDetail = () => {
           {/* Partner Header */}
           <div className="p-8 md:p-12 border-b border-stone-50 bg-gradient-to-br from-white to-stone-50">
             <div className="flex flex-col md:flex-row items-center gap-8">
-              <SafeImage src={partner.logo_url} fallback={DEFAULT_LOGO} className="w-32 h-32 rounded-3xl object-contain shadow-xl border-4 border-white" alt={partner.name} optimize={false} />
+              <SafeImage src={partner.logo_url} fallback={DEFAULT_LOGO} className="w-32 h-32 rounded-3xl object-contain shadow-xl border-4 border-white" alt={partner.name} />
               <div className="text-center md:text-left">
                 <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 mb-4">
                   <span className="px-4 py-1 bg-stone-100 text-stone-600 rounded-full text-xs font-bold uppercase tracking-widest">
@@ -1611,7 +1612,7 @@ const MapPage = () => {
                   <SafeImage
                     src={loc.image_url}
                     alt={loc.name}
-                    optimize={false}
+                    width={400}
                     className="w-full h-full object-cover object-center group-hover:scale-110 transition-transform duration-500"
                   />
                   ) : (
@@ -1655,7 +1656,7 @@ const MapPage = () => {
                     <div className="flex items-center gap-1.5 mb-2">
                       {(loc as any).brand.logo_url && (
                         <SafeImage src={(loc as any).brand.logo_url} alt={(loc as any).brand.name}
-                          className="w-4 h-4 rounded-full object-cover" fallback={DEFAULT_LOGO} optimize={false} />
+                          className="w-4 h-4 rounded-full object-cover" fallback={DEFAULT_LOGO} />
                       )}
                       <span className="text-xs font-bold text-orange-600">{(loc as any).brand.name}</span>
                     </div>
@@ -1720,7 +1721,7 @@ const PartnersPage = () => {
               to={`/partner/${partner.id}`}
               className="bg-white p-8 rounded-3xl border border-stone-100 shadow-sm hover:shadow-md transition-all group block"
             >
-              <SafeImage src={partner.logo_url} fallback={DEFAULT_LOGO} className="w-20 h-20 rounded-2xl object-contain mb-6 bg-stone-50" alt={partner.name} optimize={false} />
+              <SafeImage src={partner.logo_url} fallback={DEFAULT_LOGO} className="w-20 h-20 rounded-2xl object-contain mb-6 bg-stone-50" alt={partner.name} />
               <h3 className="text-xl font-bold mb-2 group-hover:text-orange-600 transition-colors">{partner.name}</h3>
               <p className="text-orange-600 text-sm font-medium mb-4">{partner.type}</p>
               <div className="text-stone-500 text-sm leading-relaxed line-clamp-3">
@@ -2997,7 +2998,7 @@ const AdminDashboard = () => {
                       {partners.map(partner => (
                         <tr key={partner.id} className="group">
                           <td className="py-4 font-medium flex items-center gap-3">
-                            <SafeImage src={partner.logo_url} className="w-8 h-8 rounded-full object-contain bg-stone-50" alt="" optimize={false} />
+                            <SafeImage src={partner.logo_url} className="w-8 h-8 rounded-full object-contain bg-stone-50" alt="" />
                             {partner.name}
                           </td>
                           <td className="py-4 text-sm">{partner.type}</td>
@@ -3633,7 +3634,7 @@ const AdminDashboard = () => {
                 <div className="flex items-center gap-3">
                   {managingBrand.logo_url && (
                     <SafeImage src={managingBrand.logo_url} alt={managingBrand.name}
-                      className="w-10 h-10 rounded-xl object-cover border border-stone-100" fallback={DEFAULT_LOGO} optimize={false} />
+                      className="w-10 h-10 rounded-xl object-cover border border-stone-100" fallback={DEFAULT_LOGO} />
                   )}
                   <div>
                     <h3 className="text-xl font-bold text-stone-900">{managingBrand.name}</h3>
