@@ -1608,11 +1608,11 @@ const MapPage = () => {
               >
                 <div className="relative h-48 overflow-hidden">
                   {loc.image_url ? (
-                  <SafeImage 
-                    src={loc.image_url} 
+                  <SafeImage
+                    src={loc.image_url}
                     alt={loc.name}
-                    width={400}
-                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                    optimize={false}
+                    className="w-full h-full object-cover object-center group-hover:scale-110 transition-transform duration-500"
                   />
                   ) : (
                     <div className="w-full h-full bg-stone-50 flex items-center justify-center text-stone-200">
