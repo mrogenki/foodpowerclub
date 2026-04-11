@@ -57,7 +57,20 @@ const queryClient = new QueryClient({
 import { cn } from './lib/utils';
 import type { Event, Brand, Partner, Location, Review, KOLReview, Promotion } from './types';
 
-import { APIProvider, Map, AdvancedMarker, Pin, InfoWindow, useMapsLibrary } from '@vis.gl/react-google-maps';
+import { APIProvider, Map, AdvancedMarker, Pin, InfoWindow, useMapsLibrary, useMap } from '@vis.gl/react-google-maps';
+import { MarkerClusterer } from '@googlemaps/markerclusterer';
+
+// --- Skeleton Loading 元件 ---
+const SkeletonCard = () => (
+  <div className="bg-white rounded-3xl border border-stone-100 overflow-hidden animate-pulse">
+    <div className="h-48 bg-stone-200" />
+    <div className="p-6 space-y-3">
+      <div className="h-5 bg-stone-200 rounded-full w-3/4" />
+      <div className="h-4 bg-stone-100 rounded-full w-full" />
+      <div className="h-4 bg-stone-100 rounded-full w-2/3" />
+    </div>
+  </div>
+);
 
 // --- Constants ---
 const DEFAULT_EVENT_IMAGE = "https://images.unsplash.com/photo-1555939594-58d7cb561ad1?q=80&w=1974&auto=format&fit=crop";
@@ -1204,15 +1217,19 @@ const MapPage = () => {
   const [activeCity, setActiveCity] = useState<string>('全部');
   const [activeDistrict, setActiveDistrict] = useState<string>('全部');
   const [locations, setLocations] = useState<Location[]>([]);
+  const [loadingLocations, setLoadingLocations] = useState(true);
 
   useEffect(() => {
     const fetchLocations = async () => {
       try {
+        setLoadingLocations(true);
         const { data, error } = await supabase.from('locations').select('*');
         if (error) throw error;
         if (data) setLocations(data);
       } catch (error: any) {
         console.error('Fetch locations error:', error);
+      } finally {
+        setLoadingLocations(false);
       }
     };
     fetchLocations();
@@ -1286,19 +1303,10 @@ const MapPage = () => {
               disableDefaultUI={false}
               mapId={GOOGLE_MAPS_MAP_ID}
             >
-              {filteredLocations.map((loc) => (
-                <AdvancedMarker
-                  key={loc.id}
-                  position={{ lat: loc.lat, lng: loc.lng }}
-                  onClick={() => setSelectedShop(loc)}
-                >
-                  <Pin 
-                    background={loc.category === 'BBQ' ? '#ef4444' : loc.category === 'Hotpot' ? '#f97316' : loc.category === 'Drink' ? '#06b6d4' : '#ea580c'} 
-                    glyphColor={'#fff'} 
-                    borderColor={'#fff'} 
-                  />
-                </AdvancedMarker>
-              ))}
+              <ClusteredMarkers
+                locations={filteredLocations}
+                onSelect={(loc) => setSelectedShop(loc)}
+              />
             </Map>
           </div>
 
@@ -1550,7 +1558,9 @@ const MapPage = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredLocations.map((loc) => (
+            {loadingLocations ? (
+              Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)
+            ) : filteredLocations.map((loc) => (
               <motion.div
                 key={loc.id}
                 layout
@@ -1912,6 +1922,49 @@ const PromotionsPage = () => {
   );
 };
 
+// --- Marker Clusterer 元件 ---
+const ClusteredMarkers = ({ locations, onSelect }: { locations: Location[], onSelect: (loc: Location) => void }) => {
+  const map = useMap();
+  const [clusterer, setClusterer] = React.useState<MarkerClusterer | null>(null);
+  const markersRef = React.useRef<Map<string, google.maps.marker.AdvancedMarkerElement>>(new Map());
+
+  useEffect(() => {
+    if (!map) return;
+    const c = new MarkerClusterer({ map });
+    setClusterer(c);
+    return () => { c.clearMarkers(); };
+  }, [map]);
+
+  useEffect(() => {
+    if (!clusterer || !map) return;
+    clusterer.clearMarkers();
+    markersRef.current.clear();
+
+    const newMarkers = locations.map(loc => {
+      const pin = document.createElement('div');
+      pin.className = 'cursor-pointer';
+      pin.innerHTML = `<div style="
+        background:${loc.category==='BBQ'?'#ef4444':loc.category==='Hotpot'?'#f97316':loc.category==='Drink'?'#06b6d4':'#ea580c'};
+        width:24px;height:24px;border-radius:50%;border:2px solid white;
+        box-shadow:0 2px 6px rgba(0,0,0,0.3);">
+      </div>`;
+
+      const marker = new google.maps.marker.AdvancedMarkerElement({
+        map,
+        position: { lat: loc.lat, lng: loc.lng },
+        content: pin,
+      });
+      marker.addListener('click', () => onSelect(loc));
+      markersRef.current.set(loc.id, marker);
+      return marker;
+    });
+
+    clusterer.addMarkers(newMarkers);
+  }, [locations, clusterer, map, onSelect]);
+
+  return null;
+};
+
 // --- Place Autocomplete Component ---
 
 interface PlaceAutocompleteProps {
@@ -1981,6 +2034,10 @@ const AdminDashboard = () => {
 
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [editingLocation, setEditingLocation] = useState<Location | null>(null);
+  const [showBulkImport, setShowBulkImport] = useState(false);
+  const [bulkImportText, setBulkImportText] = useState('');
+  const [bulkImportProgress, setBulkImportProgress] = useState<{ done: number; total: number; status: string; results: { name: string; ok: boolean; msg: string }[] } | null>(null);
+  const [bulkImportRunning, setBulkImportRunning] = useState(false);
   const [locationSearchQuery, setLocationSearchQuery] = useState('');
   const [locationSortOrder, setLocationSortOrder] = useState<'name' | 'category' | 'city'>('name');
 
@@ -2365,6 +2422,99 @@ const AdminDashboard = () => {
       if (error) alert(`刪除失敗: ${error.message}`);
       else fetchData();
     }
+  };
+
+  const handleBulkImport = async () => {
+    const lines = bulkImportText.split('
+').map(l => l.trim()).filter(Boolean);
+    if (!lines.length) return;
+    setBulkImportRunning(true);
+    setBulkImportProgress({ done: 0, total: lines.length, status: '準備中...', results: [] });
+
+    const mapDiv = document.createElement('div');
+    document.body.appendChild(mapDiv);
+    const map = new google.maps.Map(mapDiv, { center: { lat: 25.04, lng: 121.54 }, zoom: 14 });
+    const svc = new google.maps.places.PlacesService(map);
+
+    const results: { name: string; ok: boolean; msg: string }[] = [];
+
+    for (let i = 0; i < lines.length; i++) {
+      const query = lines[i];
+      setBulkImportProgress({ done: i, total: lines.length, status: `搜尋中：${query}`, results: [...results] });
+
+      try {
+        const placeResult = await new Promise<google.maps.places.PlaceResult | null>((resolve) => {
+          svc.textSearch({ query, language: 'zh-TW' }, (res, status) => {
+            resolve(status === 'OK' && res?.length ? res[0] : null);
+          });
+        });
+
+        if (!placeResult) {
+          results.push({ name: query, ok: false, msg: '找不到地點' });
+          continue;
+        }
+
+        // 取得照片
+        let imageUrl = '';
+        if (placeResult.photos?.length) {
+          const photoUrl = placeResult.photos[0].getUrl({ maxWidth: 1000 });
+          try {
+            const pr = await fetch(`https://${import.meta.env.VITE_SUPABASE_URL?.replace('https://', '')}/functions/v1/proxy-place-photo`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ photo_url: photoUrl })
+            });
+            const pd = await pr.json();
+            if (pd.url) imageUrl = pd.url;
+          } catch { imageUrl = ''; }
+        }
+
+        // 解析縣市
+        let city = '', district = '';
+        const addr = placeResult.formatted_address || '';
+        const comps = placeResult.address_components || [];
+        const cityComp = comps.find((c: any) => c.types.includes('administrative_area_level_1'));
+        const distComp = comps.find((c: any) => c.types.includes('sublocality_level_1') || c.types.includes('locality'));
+        if (cityComp) city = cityComp.long_name.replace(/台/g, '臺');
+        if (distComp && distComp.long_name !== cityComp?.long_name) district = distComp.long_name.replace(/台/g, '臺');
+
+        const matchedCity = Object.keys(TAIWAN_DISTRICTS).find(k => city.includes(k.replace(/[市縣]/g, '')) || addr.includes(k)) || '';
+        const matchedDist = matchedCity ? (TAIWAN_DISTRICTS[matchedCity].find(d => district.includes(d.replace(/[區鄉鎮市]/g, '')) || addr.includes(d)) || '') : '';
+
+        const locData = {
+          name: placeResult.name || query,
+          category: locationCategory,
+          city: matchedCity,
+          district: matchedDist,
+          address: addr,
+          lat: placeResult.geometry?.location?.lat() || 0,
+          lng: placeResult.geometry?.location?.lng() || 0,
+          phone: (placeResult as any).international_phone_number || '',
+          image_url: imageUrl,
+          description: (placeResult as any).editorial_summary?.overview || '',
+          rating: placeResult.rating || 5,
+          avg_price: '',
+          booking_url: (placeResult as any).website || '',
+          order_url: '',
+          business_hours: '',
+          discount_info: '',
+        };
+
+        const { error } = await supabase.from('locations').insert([locData]);
+        if (error) { results.push({ name: locData.name, ok: false, msg: error.message }); }
+        else { results.push({ name: locData.name, ok: true, msg: '已新增' }); }
+
+      } catch (e: any) {
+        results.push({ name: query, ok: false, msg: e.message });
+      }
+
+      await new Promise(r => setTimeout(r, 600));
+    }
+
+    document.body.removeChild(mapDiv);
+    setBulkImportProgress({ done: lines.length, total: lines.length, status: '完成！', results });
+    setBulkImportRunning(false);
+    fetchData();
   };
 
   const handleSaveLocation = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -2869,6 +3019,12 @@ const AdminDashboard = () => {
                     >
                       <Plus className="w-4 h-4" /> 新增地點
                     </button>
+                    <button 
+                      onClick={() => { setShowBulkImport(true); setBulkImportText(''); setBulkImportProgress(null); }}
+                      className="bg-orange-600 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 whitespace-nowrap"
+                    >
+                      <FileText className="w-4 h-4" /> 批次匯入
+                    </button>
                   </div>
                 </div>
 
@@ -3343,6 +3499,92 @@ const AdminDashboard = () => {
                   <button type="submit" className="flex-1 px-6 py-3 rounded-xl bg-orange-600 text-white font-bold hover:bg-orange-500 transition-colors">儲存優惠</button>
                 </div>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Bulk Import Modal */}
+      <AnimatePresence>
+        {showBulkImport && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => !bulkImportRunning && setShowBulkImport(false)}
+              className="absolute inset-0 bg-stone-900/60 backdrop-blur-sm" />
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
+              className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden">
+              <div className="p-8 border-b border-stone-100 flex justify-between items-center">
+                <div>
+                  <h3 className="text-xl font-bold">批次匯入店家</h3>
+                  <p className="text-sm text-stone-400 mt-1">每行一個店名或 Google 地圖搜尋詞</p>
+                </div>
+                {!bulkImportRunning && (
+                  <button onClick={() => setShowBulkImport(false)} className="text-stone-400 hover:text-stone-600"><X className="w-6 h-6" /></button>
+                )}
+              </div>
+              <div className="p-8 space-y-6 max-h-[70vh] overflow-y-auto">
+                {!bulkImportProgress ? (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-stone-700 mb-2">預設類型</label>
+                      <select value={locationCategory} onChange={(e) => setLocationCategory(e.target.value as any)}
+                        className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600">
+                        <option value="BBQ">燒肉</option>
+                        <option value="Hotpot">火鍋</option>
+                        <option value="Bento">便當</option>
+                        <option value="Drink">手搖</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-stone-700 mb-2">店家清單（每行一筆）</label>
+                      <textarea
+                        value={bulkImportText}
+                        onChange={(e) => setBulkImportText(e.target.value)}
+                        rows={10}
+                        placeholder={`雞湯大叔 敦北店\n草原風蒙古火鍋 永康店\n燒肉眾 台北西門店`}
+                        className="w-full px-4 py-3 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600 font-mono text-sm"
+                      />
+                      <p className="text-xs text-stone-400 mt-1">目前 {bulkImportText.split('\n').filter(Boolean).length} 筆，系統會自動搜尋 Google Maps 並下載照片</p>
+                    </div>
+                    <div className="flex gap-4">
+                      <button onClick={() => setShowBulkImport(false)} className="flex-1 px-6 py-3 rounded-xl border border-stone-200 font-bold">取消</button>
+                      <button onClick={handleBulkImport} disabled={!bulkImportText.trim()}
+                        className="flex-1 px-6 py-3 rounded-xl bg-orange-600 text-white font-bold hover:bg-orange-500 disabled:opacity-50">
+                        開始匯入
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <div className="space-y-6">
+                    <div>
+                      <div className="flex justify-between text-sm font-medium text-stone-700 mb-2">
+                        <span>{bulkImportProgress.status}</span>
+                        <span>{bulkImportProgress.done} / {bulkImportProgress.total}</span>
+                      </div>
+                      <div className="h-3 bg-stone-100 rounded-full overflow-hidden">
+                        <div className="h-full bg-orange-600 rounded-full transition-all duration-500"
+                          style={{ width: `${(bulkImportProgress.done / bulkImportProgress.total) * 100}%` }} />
+                      </div>
+                    </div>
+                    <div className="space-y-2 max-h-64 overflow-y-auto">
+                      {bulkImportProgress.results.map((r, i) => (
+                        <div key={i} className={`flex items-center gap-3 p-3 rounded-xl ${r.ok ? 'bg-green-50' : 'bg-red-50'}`}>
+                          <span className={`text-lg ${r.ok ? '' : ''}`}>{r.ok ? '✅' : '❌'}</span>
+                          <div>
+                            <p className="text-sm font-bold text-stone-800">{r.name}</p>
+                            <p className={`text-xs ${r.ok ? 'text-green-600' : 'text-red-500'}`}>{r.msg}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    {!bulkImportRunning && (
+                      <button onClick={() => setShowBulkImport(false)} className="w-full px-6 py-3 rounded-xl bg-stone-900 text-white font-bold">
+                        完成，關閉
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
             </motion.div>
           </div>
         )}
