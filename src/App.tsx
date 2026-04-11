@@ -80,11 +80,9 @@ const DEFAULT_AVATAR = "https://placehold.co/100x100/stone/white?text=KOL";
 // --- Utilities ---
 
 // Supabase Storage 圖片轉換（自動縮圖 + WebP）
-const optimizeImageUrl = (url: string, width: number = 800): string => {
-  if (!url || !url.includes('supabase.co/storage')) return url;
-  return url
-    .replace('/object/public/', '/render/image/public/')
-    + `?width=${width}&quality=80&format=webp`;
+const optimizeImageUrl = (url: string, _width: number = 800): string => {
+  // Supabase Image Transformation 未啟用，直接回傳原始 URL
+  return url;
 };
 
 const uploadImage = async (file: File, folder: string = 'uploads') => {
