@@ -2029,6 +2029,12 @@ const AdminDashboard = () => {
   const [editingPromotion, setEditingPromotion] = useState<Promotion | null>(null);
 
   const [showLocationModal, setShowLocationModal] = useState(false);
+  // 活動店家管理 modal
+  const [showEventLocationsModal, setShowEventLocationsModal] = useState(false);
+  const [managingEvent, setManagingEvent] = useState<Event | null>(null);
+  const [eventLinkedLocationIds, setEventLinkedLocationIds] = useState<string[]>([]);
+  const [locationModalSearch, setLocationModalSearch] = useState('');
+  const [savingEventLocations, setSavingEventLocations] = useState(false);
   const [editingLocation, setEditingLocation] = useState<Location | null>(null);
   const [showBulkImport, setShowBulkImport] = useState(false);
   const [bulkImportText, setBulkImportText] = useState('');
@@ -2423,6 +2429,40 @@ const AdminDashboard = () => {
     }
   };
 
+  const handleOpenEventLocations = async (event: Event) => {
+    setManagingEvent(event);
+    setLocationModalSearch('');
+    // 載入這個活動已綁定的店家
+    const { data } = await supabase.from('location_events').select('location_id').eq('event_id', event.id);
+    setEventLinkedLocationIds(data?.map(r => r.location_id) || []);
+    // 確保 locations 已載入
+    if (locations.length === 0) {
+      const { data: locs } = await supabase.from('locations').select('id, name, category, city, district');
+      if (locs) setLocations(locs as any);
+    }
+    setShowEventLocationsModal(true);
+  };
+
+  const handleSaveEventLocations = async () => {
+    if (!managingEvent) return;
+    setSavingEventLocations(true);
+    try {
+      // 刪掉舊的，重新建立
+      await supabase.from('location_events').delete().eq('event_id', managingEvent.id);
+      if (eventLinkedLocationIds.length > 0) {
+        await supabase.from('location_events').insert(
+          eventLinkedLocationIds.map(lid => ({ location_id: lid, event_id: managingEvent.id }))
+        );
+      }
+      setShowEventLocationsModal(false);
+      setManagingEvent(null);
+    } catch (e) {
+      alert('儲存失敗');
+    } finally {
+      setSavingEventLocations(false);
+    }
+  };
+
   const handleBulkImport = async () => {
     const lines = bulkImportText.split(/\r?\n/).map((l: string) => l.trim()).filter(Boolean);
     if (!lines.length) return;
@@ -2721,6 +2761,13 @@ const AdminDashboard = () => {
                           <td className="py-4 text-sm text-stone-500">{event.start_date}</td>
                           <td className="py-4 text-right">
                             <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button
+                                onClick={() => handleOpenEventLocations(event)}
+                                className="px-2 py-1 text-xs font-bold text-orange-600 hover:bg-orange-50 rounded-lg flex items-center gap-1 transition-colors"
+                                title="管理活動店家"
+                              >
+                                <MapPin className="w-3 h-3" /> 店家
+                              </button>
                               <button 
                                 onClick={() => { setEditingEvent(event); setShowEventModal(true); }}
                                 className="p-2 text-stone-400 hover:text-orange-600"
@@ -3507,6 +3554,107 @@ const AdminDashboard = () => {
                   <button type="submit" className="flex-1 px-6 py-3 rounded-xl bg-orange-600 text-white font-bold hover:bg-orange-500 transition-colors">儲存優惠</button>
                 </div>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Event Locations Modal */}
+      <AnimatePresence>
+        {showEventLocationsModal && managingEvent && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => !savingEventLocations && setShowEventLocationsModal(false)}
+              className="absolute inset-0 bg-stone-900/60 backdrop-blur-sm" />
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
+              className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden max-h-[85vh] flex flex-col">
+              
+              {/* Header */}
+              <div className="p-6 border-b border-stone-100 flex justify-between items-start shrink-0">
+                <div>
+                  <h3 className="text-xl font-bold text-stone-900">{managingEvent.title}</h3>
+                  <p className="text-sm text-stone-400 mt-1">勾選參加此活動的地圖店家，地圖上會顯示活動標示</p>
+                </div>
+                <button onClick={() => setShowEventLocationsModal(false)} className="text-stone-400 hover:text-stone-600 mt-1">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              {/* 統計 */}
+              <div className="px-6 py-3 bg-orange-50 border-b border-orange-100 shrink-0 flex items-center justify-between">
+                <span className="text-sm text-orange-700">
+                  已選 <strong>{eventLinkedLocationIds.length}</strong> 家店參加此活動
+                </span>
+                <button onClick={() => setEventLinkedLocationIds([])} className="text-xs text-stone-400 hover:text-red-500 transition-colors">
+                  清除全部
+                </button>
+              </div>
+
+              {/* 搜尋 */}
+              <div className="px-6 py-3 border-b border-stone-100 shrink-0">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
+                  <input
+                    type="text"
+                    placeholder="搜尋店家名稱或地區..."
+                    value={locationModalSearch}
+                    onChange={e => setLocationModalSearch(e.target.value)}
+                    className="w-full pl-9 pr-4 py-2 bg-stone-50 rounded-xl border border-stone-200 text-sm outline-none focus:ring-2 focus:ring-orange-500/20"
+                  />
+                </div>
+              </div>
+
+              {/* 店家列表 */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-1">
+                {locations
+                  .filter(loc => !locationModalSearch || 
+                    loc.name.toLowerCase().includes(locationModalSearch.toLowerCase()) ||
+                    (loc.city + loc.district).includes(locationModalSearch))
+                  .map(loc => {
+                    const isLinked = eventLinkedLocationIds.includes(loc.id);
+                    const catLabel = loc.category === 'BBQ' ? '燒肉' : loc.category === 'Hotpot' ? '火鍋' : loc.category === 'Bento' ? '便當' : '手搖';
+                    return (
+                      <label key={loc.id} className={cn(
+                        'flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-colors',
+                        isLinked ? 'bg-orange-50 border border-orange-200' : 'hover:bg-stone-50 border border-transparent'
+                      )}>
+                        <input
+                          type="checkbox"
+                          checked={isLinked}
+                          onChange={e => {
+                            if (e.target.checked) {
+                              setEventLinkedLocationIds([...eventLinkedLocationIds, loc.id]);
+                            } else {
+                              setEventLinkedLocationIds(eventLinkedLocationIds.filter(id => id !== loc.id));
+                            }
+                          }}
+                          className="w-4 h-4 accent-orange-600 shrink-0"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold text-stone-800 truncate">{loc.name}</p>
+                          <p className="text-xs text-stone-400">{loc.city}{loc.district}</p>
+                        </div>
+                        <span className={cn(
+                          'px-2 py-0.5 rounded-full text-[10px] font-bold text-white shrink-0',
+                          loc.category === 'BBQ' ? 'bg-orange-600' : loc.category === 'Hotpot' ? 'bg-red-600' : loc.category === 'Bento' ? 'bg-emerald-600' : 'bg-blue-600'
+                        )}>
+                          {catLabel}
+                        </span>
+                      </label>
+                    );
+                  })}
+              </div>
+
+              {/* Footer */}
+              <div className="p-4 border-t border-stone-100 flex gap-3 shrink-0 bg-white">
+                <button onClick={() => setShowEventLocationsModal(false)} className="flex-1 py-3 rounded-xl border border-stone-200 font-bold text-stone-600 hover:bg-stone-50">
+                  取消
+                </button>
+                <button onClick={handleSaveEventLocations} disabled={savingEventLocations}
+                  className="flex-1 py-3 rounded-xl bg-orange-600 text-white font-bold hover:bg-orange-500 disabled:opacity-50 flex items-center justify-center gap-2">
+                  {savingEventLocations ? '儲存中...' : `儲存（${eventLinkedLocationIds.length} 家）`}
+                </button>
+              </div>
             </motion.div>
           </div>
         )}
