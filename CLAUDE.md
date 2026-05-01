@@ -35,14 +35,20 @@
 
 ## 環境變數（.env.local）
 
+> ⚠️ **請勿將實際金鑰值寫入此檔案**。Key 只放 `.env.local`（已被 `.gitignore` 排除）與 Vercel 專案環境變數。
+
+需要的變數名稱：
+
 ```
-VITE_SUPABASE_URL=https://spueuuoihhrejuehgfsl.supabase.co
-VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNwdWV1dW9paGhyZWp1ZWhnZnNsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDE3NjY4OTQsImV4cCI6MjA1NzM0Mjg5NH0.VHTUZ7dISP0EYxYd8cJpNvPNq5Ns5E3D0sCAI7etEUo
-VITE_GOOGLE_MAPS_API_KEY=AIzaSyC6Fvho40AkRKwXx2wueWdPU3bzN7ZY6a0
-VITE_GOOGLE_MAPS_MAP_ID=（從 Vercel 環境變數取得）
+VITE_SUPABASE_URL                 # Supabase Project URL
+VITE_SUPABASE_ANON_KEY            # Supabase anon key（前端公開使用，但仍依 RLS 控制存取）
+VITE_GOOGLE_MAPS_API_KEY          # Google Maps API Key（必須在 GCP Console 設 HTTP referrer 限制）
+VITE_GOOGLE_MAPS_MAP_ID           # Google Maps Map ID
 ```
 
-> Google Maps 無限制 Key（僅限本機測試用）：AIzaSyAWlPz-WHUjO-Xhg7oExhPUjrmbu05ABKc
+- 本機開發：複製 `.env.example` 為 `.env.local` 後填入實際值
+- 正式環境：在 Vercel 專案 Settings → Environment Variables 設定
+- Google Maps Key **必須在 Google Cloud Console 設 HTTP referrer 白名單**（限定 `localhost`、`*.foodpowerclub.com`、`*.vercel.app`），避免被盜用
 
 ## 開發指令
 
