@@ -54,7 +54,7 @@ VITE_GOOGLE_MAPS_MAP_ID           # Google Maps Map ID
 
 ```bash
 npm install
-npm run dev       # 本地開發，http://localhost:3000
+npm run dev       # 本地開發，http://localhost:3002
 npm run build     # 建置（Vercel 自動執行，通常不需手動）
 npm run lint      # tsc --noEmit 型別檢查
 ```
