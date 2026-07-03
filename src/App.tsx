@@ -87,6 +87,20 @@ const EVENT_CATEGORIES: { value: EventCategory; label: string; emoji: string; de
 const eventCategoryLabel = (category: string) =>
   EVENT_CATEGORIES.find((c) => c.value === category)?.label || category;
 
+// 活動期間顯示：時間為選填（TIME 欄位存 HH:MM:SS，取 HH:MM）
+// 同一天：2026-07-10 18:30 ~ 21:00；跨日：2026-07-01 ~ 2026-07-31
+const formatEventPeriod = (event: Event) => {
+  const startTime = event.start_time?.slice(0, 5) || '';
+  const endTime = event.end_time?.slice(0, 5) || '';
+  const start = startTime ? `${event.start_date} ${startTime}` : event.start_date;
+  if (event.end_date === event.start_date) {
+    if (endTime) return `${start} ~ ${endTime}`;
+    return start;
+  }
+  const end = endTime ? `${event.end_date} ${endTime}` : event.end_date;
+  return `${start} ~ ${end}`;
+};
+
 // --- Utilities ---
 
 // Supabase Storage 圖片轉換（自動縮圖 + WebP）
@@ -728,7 +742,7 @@ const EventsPage = () => {
                     <div className="p-8">
                       <div className="flex items-center gap-2 text-stone-400 text-xs mb-3">
                         <Calendar className="w-4 h-4" />
-                        <span>{event.start_date} ~ {event.end_date}</span>
+                        <span>{formatEventPeriod(event)}</span>
                       </div>
                       <h3 className="text-2xl font-bold mb-3 group-hover:text-orange-600 transition-colors">{event.title}</h3>
                       <p className="text-stone-500 text-sm mb-6 line-clamp-2">{event.description}</p>
@@ -802,7 +816,7 @@ const EventDetail = () => {
                   {event.type === 'current' ? "進行中" : "已結束"}
                 </span>
                 <span className="text-stone-300 text-sm flex items-center gap-1">
-                  <Calendar className="w-4 h-4" /> {event.start_date} ~ {event.end_date}
+                  <Calendar className="w-4 h-4" /> {formatEventPeriod(event)}
                 </span>
               </div>
               <h1 className="text-4xl md:text-6xl font-bold text-white mb-4">{event.title}</h1>
@@ -1099,7 +1113,7 @@ const EventSignupPage = () => {
           <h1 className="text-2xl md:text-3xl font-bold mb-1">{event.title}</h1>
           <p className="text-orange-100 text-sm mb-6">報名接龍・名單即時公開</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
-            <div className="flex items-center gap-2"><Calendar className="w-4 h-4 shrink-0 opacity-80" />{event.start_date}{event.end_date && event.end_date !== event.start_date ? ` ~ ${event.end_date}` : ''}</div>
+            <div className="flex items-center gap-2"><Calendar className="w-4 h-4 shrink-0 opacity-80" />{formatEventPeriod(event)}</div>
             {settings.event_time && <div className="flex items-center gap-2"><Clock className="w-4 h-4 shrink-0 opacity-80" />{settings.event_time}</div>}
             {settings.event_location && <div className="flex items-center gap-2"><MapPin className="w-4 h-4 shrink-0 opacity-80" />{settings.event_location}</div>}
             {settings.fee && <div className="flex items-center gap-2"><DollarSign className="w-4 h-4 shrink-0 opacity-80" />{settings.fee}</div>}
@@ -2658,6 +2672,8 @@ const AdminDashboard = () => {
       content: editorContent,
       start_date: formData.get('start_date') as string,
       end_date: formData.get('end_date') as string,
+      start_time: (formData.get('start_time') as string) || null,
+      end_time: (formData.get('end_time') as string) || null,
       type: formData.get('type') as 'current' | 'past',
       category: formData.get('category') as EventCategory,
       image_url: imageUrl,
@@ -3369,7 +3385,7 @@ const AdminDashboard = () => {
                               {event.type === 'current' ? '進行中' : '已結束'}
                             </span>
                           </td>
-                          <td className="py-4 text-sm text-stone-500">{event.start_date}</td>
+                          <td className="py-4 text-sm text-stone-500">{event.start_date}{event.start_time ? ` ${event.start_time.slice(0, 5)}` : ''}</td>
                           <td className="py-4 text-right">
                             <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                               <button
@@ -3822,6 +3838,14 @@ const AdminDashboard = () => {
                   <div>
                     <label className="block text-sm font-medium text-stone-700 mb-2">結束日期</label>
                     <input type="date" name="end_date" defaultValue={editingEvent?.end_date} className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" required />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-2">開始時間（選填）</label>
+                    <input type="time" name="start_time" defaultValue={editingEvent?.start_time?.slice(0, 5) || ''} className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-2">結束時間（選填）</label>
+                    <input type="time" name="end_time" defaultValue={editingEvent?.end_time?.slice(0, 5) || ''} className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-stone-700 mb-2">活動狀態</label>
