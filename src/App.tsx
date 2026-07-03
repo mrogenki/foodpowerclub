@@ -1681,7 +1681,7 @@ const MapPage = () => {
             >
               {filteredLocations.map((loc) => {
                 const isEventParticipant = loc.location_events && loc.location_events.length > 0;
-                const brand = (loc as any).brand;
+                const brand = loc.brand;
                 const pinColor = loc.category === 'BBQ' ? '#ef4444' : loc.category === 'Hotpot' ? '#f97316' : loc.category === 'Drink' ? '#06b6d4' : '#ea580c';
                 return (
                   <AdvancedMarker
@@ -2012,7 +2012,7 @@ const MapPage = () => {
                        loc.category === 'Bento' ? '便當' : 
                        loc.category === 'Drink' ? '手搖' : loc.category}
                     </span>
-                    {loc.location_events?.map((le: any) => le.events).filter(Boolean).map((ev: any) => (
+                    {loc.location_events?.map((le) => le.events).filter((ev) => !!ev).map((ev) => (
                       <span key={ev.id} className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-yellow-400 text-yellow-900 shadow-lg flex items-center gap-1">
                         ⭐ {ev.title}
                       </span>
@@ -2032,13 +2032,13 @@ const MapPage = () => {
                       <span className="text-xs font-bold">{(loc.rating || 5).toFixed(1)}</span>
                     </div>
                   </div>
-                  {(loc as any).brand && (
+                  {loc.brand && (
                     <div className="flex items-center gap-1.5 mb-2">
-                      {(loc as any).brand.logo_url && (
-                        <SafeImage src={(loc as any).brand.logo_url} alt={(loc as any).brand.name}
+                      {loc.brand.logo_url && (
+                        <SafeImage src={loc.brand.logo_url} alt={loc.brand.name}
                           className="w-4 h-4 rounded-full object-cover" fallback={DEFAULT_LOGO} />
                       )}
-                      <span className="text-xs font-bold text-orange-600">{(loc as any).brand.name}</span>
+                      <span className="text-xs font-bold text-orange-600">{loc.brand.name}</span>
                     </div>
                   )}
                   <p className="text-xs text-stone-500 flex items-center gap-1 mb-4">
@@ -4202,7 +4202,7 @@ const AdminDashboard = () => {
                     (loc.city + loc.district).includes(brandLocationSearch))
                   .map(loc => {
                     const isLinked = brandLinkedLocationIds.includes(loc.id);
-                    const otherBrand = (loc as any).brand && (loc as any).brand.id !== managingBrand.id ? (loc as any).brand.name : null;
+                    const otherBrand = loc.brand && loc.brand.id !== managingBrand.id ? loc.brand.name : null;
                     return (
                       <label key={loc.id} className={cn(
                         'flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-colors border',

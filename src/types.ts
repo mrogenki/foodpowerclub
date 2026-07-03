@@ -55,6 +55,8 @@ export interface Location {
   business_hours?: string;
   avg_price?: string;
   created_at: string;
+  location_events?: { event_id: string; events?: { id: string; title: string; type: string } }[];
+  brand?: { id: string; name: string; logo_url: string };
 }
 
 export interface Review {
