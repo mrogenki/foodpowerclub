@@ -88,6 +88,7 @@ npm run lint      # tsc --noEmit 型別檢查
 | promotions | 優惠（id, brand_id, title, description, discount_code, start_date, end_date, image_url, is_active） |
 | locations | 美食地圖店家（id, name, category, city, district, address, lat, lng, phone, image_url, description, discount_info, rating, booking_url, order_url, business_hours, avg_price, **brand_id**） |
 | location_events | 店家↔活動關聯（id, location_id, event_id）— 多對多 |
+| admin_users | 管理員帳號（user_id→auth.users, email, role）— role：'owner' 帳號＋內容管理 / 'editor' 內容管理。內容表寫入 RLS 皆檢查 `is_admin()`；帳號增刪改走 admin-accounts Edge Function（service role），前端僅可讀 |
 
 **關聯架構**：
 ```
@@ -108,6 +109,7 @@ npm run lint      # tsc --noEmit 型別檢查
 | Function | 說明 |
 |---|---|
 | proxy-place-photo (v2) | 下載 Google Places 照片並存入 images bucket，回傳永久 Storage URL |
+| admin-accounts | 管理員帳號管理（create/update_role/reset_password/delete），僅 owner 可呼叫；有「至少保留一位 owner」「不能刪自己」防呆 |
 
 呼叫方式：
 ```js
@@ -128,6 +130,7 @@ fetch(`${SUPABASE_URL}/functions/v1/proxy-place-photo`, {
 | 開箱管理 | 支援圖片/影片（YouTube、TikTok、Reels 自動轉 embed URL） |
 | 優惠管理 | 含折扣碼、有效期 |
 | 贊助管理 | 含排序權重 |
+| 帳號管理 | 僅 owner 可見；新增管理員（Email＋密碼＋角色）、改角色、重設密碼、刪除。進入 /admin 會檢查 admin_users 名單，不在名單者強制登出 |
 
 ### 批次匯入注意事項
 - 使用 Google Maps `PlacesService.textSearch` 模糊搜尋

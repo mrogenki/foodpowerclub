@@ -65,6 +65,14 @@ export interface Location {
   brand?: { id: string; name: string; logo_url: string };
 }
 
+// 管理員帳號（寫入一律透過 admin-accounts Edge Function，前端只讀）
+export interface AdminUser {
+  user_id: string;
+  email: string;
+  role: 'owner' | 'editor';
+  created_at: string;
+}
+
 export interface Review {
   id: string;
   brand_id: string;
