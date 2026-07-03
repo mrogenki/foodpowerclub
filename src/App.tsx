@@ -30,7 +30,10 @@ import {
   AlertCircle,
   DollarSign,
   CalendarCheck,
-  ShoppingBag
+  ShoppingBag,
+  ClipboardList,
+  Copy,
+  Download
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import ReactMarkdown from 'react-markdown';
@@ -55,7 +58,7 @@ const queryClient = new QueryClient({
   },
 });
 import { cn } from './lib/utils';
-import type { Event, Brand, Partner, Location, Review, KOLReview, Promotion } from './types';
+import type { Event, Brand, Partner, Location, Review, KOLReview, Promotion, SignupSettings, SignupEntry } from './types';
 
 import { APIProvider, Map, AdvancedMarker, Pin, InfoWindow, useMapsLibrary } from '@vis.gl/react-google-maps';
 
@@ -725,6 +728,7 @@ const EventDetail = () => {
   const [event, setEvent] = useState<Event | null>(null);
   const [brands, setBrands] = useState<Brand[]>([]);
   const [partners, setPartners] = useState<Partner[]>([]);
+  const [signupSettings, setSignupSettings] = useState<SignupSettings | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -732,10 +736,14 @@ const EventDetail = () => {
       const { data: eventData } = await supabase.from('events').select('*').eq('id', id).single();
       const { data: brandsData } = await supabase.from('brands').select('*').eq('event_id', id);
       const { data: partnersData } = await supabase.from('partners').select('*').eq('event_id', id).order('sort_order', { ascending: true });
-      
+      const { data: signupData } = await supabase.from('signup_settings')
+        .select('event_id, capacity, registration_open, fee, event_time, event_location, event_address')
+        .eq('event_id', id).maybeSingle();
+
       if (eventData) setEvent(eventData);
       if (brandsData) setBrands(brandsData);
       if (partnersData) setPartners(partnersData);
+      setSignupSettings(signupData || null);
     };
     fetchData();
   }, [id]);
@@ -831,6 +839,22 @@ const EventDetail = () => {
 
           {/* Sidebar */}
           <div className="space-y-12">
+            {signupSettings && (
+              <section className="bg-gradient-to-br from-orange-600 to-rose-500 rounded-3xl p-8 text-white shadow-xl shadow-orange-200">
+                <h3 className="text-xl font-bold mb-2">🍢 報名接龍</h3>
+                <p className="text-orange-100 text-sm mb-6">
+                  {signupSettings.registration_open
+                    ? '填三個欄位，名字馬上出現在公開名單！額滿自動排候補。'
+                    : '報名目前已關閉，仍可查看目前名單。'}
+                </p>
+                <Link
+                  to={`/event/${id}/signup`}
+                  className="block w-full bg-white text-orange-600 text-center py-3 rounded-xl font-bold hover:bg-stone-50 transition-colors"
+                >
+                  {signupSettings.registration_open ? '立即報名' : '查看名單'}
+                </Link>
+              </section>
+            )}
             <section>
               <h2 className="text-2xl font-bold mb-8 border-l-4 border-orange-600 pl-4">贊助夥伴</h2>
               <div className="space-y-4">
@@ -860,6 +884,352 @@ const EventDetail = () => {
           </div>
         </div>
       </div>
+    </div>
+  );
+};
+
+// --- 接龍報名（Event Signup） ---
+
+interface MySignup { id: string; cancel_token: string; name: string; }
+
+const signupStorageKey = (eventId: string) => `foodpower_signup_${eventId}`;
+
+const readMySignups = (eventId: string): MySignup[] => {
+  try { return JSON.parse(localStorage.getItem(signupStorageKey(eventId)) || '[]'); } catch { return []; }
+};
+
+const saveMySignups = (eventId: string, list: MySignup[]) => {
+  localStorage.setItem(signupStorageKey(eventId), JSON.stringify(list));
+};
+
+const EventSignupPage = () => {
+  const { id } = useParams();
+  const [event, setEvent] = useState<Event | null>(null);
+  const [settings, setSettings] = useState<SignupSettings | null>(null);
+  const [entries, setEntries] = useState<SignupEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [mySignups, setMySignups] = useState<MySignup[]>([]);
+  const [name, setName] = useState('');
+  const [industry, setIndustry] = useState('');
+  const [contact, setContact] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [toast, setToast] = useState<{ msg: string; err?: boolean } | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showToast = (msg: string, err = false) => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToast({ msg, err });
+    toastTimer.current = setTimeout(() => setToast(null), 3000);
+  };
+
+  const fetchList = async (eventId: string) => {
+    // 匿名權限只開放非敏感欄位，不可 select contact
+    const [{ data: settingsData }, { data: entriesData, error: entriesError }] = await Promise.all([
+      supabase.from('signup_settings')
+        .select('event_id, capacity, registration_open, fee, event_time, event_location, event_address')
+        .eq('event_id', eventId).maybeSingle(),
+      supabase.from('signup_entries')
+        .select('id, event_id, name, industry, status, created_at')
+        .eq('event_id', eventId).order('created_at', { ascending: true }),
+    ]);
+    setSettings(settingsData || null);
+    if (!entriesError && entriesData) {
+      setEntries(entriesData as SignupEntry[]);
+      // 伺服器上已不存在的本機報名紀錄（被取消/刪除）順手清掉
+      const serverIds = new Set(entriesData.map(e => e.id));
+      const local = readMySignups(eventId);
+      const alive = local.filter(m => serverIds.has(m.id));
+      if (alive.length !== local.length) saveMySignups(eventId, alive);
+      setMySignups(alive);
+    }
+  };
+
+  useEffect(() => {
+    if (!id) return;
+    setMySignups(readMySignups(id));
+    const init = async () => {
+      setLoading(true);
+      const { data: eventData } = await supabase.from('events').select('*').eq('id', id).single();
+      if (eventData) setEvent(eventData);
+      await fetchList(id);
+      setLoading(false);
+    };
+    init();
+    window.scrollTo(0, 0);
+
+    const timer = setInterval(() => fetchList(id), 20000);
+    const onVisible = () => { if (!document.hidden) fetchList(id); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [id]);
+
+  const confirmed = entries.filter(e => e.status === 'confirmed');
+  const waitlist = entries.filter(e => e.status === 'waitlist');
+  const capacity = settings?.capacity ?? 0;
+  const remain = Math.max(0, capacity - confirmed.length);
+  const isFull = remain <= 0;
+  const myIds = new Set(mySignups.map(m => m.id));
+
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!id) return;
+    if (!name.trim()) { showToast('請填寫姓名', true); return; }
+    if (!industry.trim()) { showToast('請填寫產業／品牌', true); return; }
+    if (!contact.trim()) { showToast('請填寫聯絡方式', true); return; }
+    setSubmitting(true);
+    try {
+      const { data, error } = await supabase.rpc('signup_register', {
+        p_event_id: id, p_name: name, p_industry: industry, p_contact: contact,
+      });
+      if (error) throw error;
+      const next = [...readMySignups(id), { id: data.id, cancel_token: data.cancel_token, name: name.trim() }];
+      saveMySignups(id, next);
+      setMySignups(next);
+      setName(''); setIndustry(''); setContact('');
+      showToast(data.status === 'confirmed' ? '報名成功！你在正取名單 🎉' : '已加入候補，有人取消會自動遞補 ⏳');
+      await fetchList(id);
+    } catch (err: any) {
+      showToast(err.message || '報名失敗，請稍後再試', true);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleCancel = async (entryId: string, token: string) => {
+    if (!id || !window.confirm('確定要取消這筆報名嗎？')) return;
+    try {
+      const { error } = await supabase.rpc('signup_cancel', { p_id: entryId, p_token: token });
+      if (error) throw error;
+      const next = readMySignups(id).filter(m => m.id !== entryId);
+      saveMySignups(id, next);
+      setMySignups(next);
+      showToast('已取消報名');
+      await fetchList(id);
+    } catch (err: any) {
+      showToast(err.message || '取消失敗', true);
+    }
+  };
+
+  if (loading) return <div className="pt-32 text-center text-stone-400">載入中...</div>;
+
+  if (!event || !settings) {
+    return (
+      <div className="pt-32 min-h-screen bg-stone-50 text-center px-4">
+        <div className="text-4xl mb-4">🍽️</div>
+        <h1 className="text-2xl font-bold text-stone-900 mb-2">此活動尚未開放報名</h1>
+        <p className="text-stone-500 mb-8">主辦方還沒有為這場活動建立報名接龍。</p>
+        <Link to={event ? `/event/${event.id}` : '/events'} className="inline-block bg-orange-600 text-white px-8 py-3 rounded-full font-bold hover:bg-orange-500 transition-colors">
+          {event ? '返回活動頁' : '查看所有活動'}
+        </Link>
+      </div>
+    );
+  }
+
+  const entryRow = (entry: SignupEntry, index: number, isWaitlist: boolean) => (
+    <li
+      key={entry.id}
+      className={cn(
+        'flex items-center gap-4 px-4 py-3 border-b border-stone-50 last:border-b-0',
+        myIds.has(entry.id) && 'bg-amber-50 rounded-xl'
+      )}
+    >
+      <span className={cn(
+        'w-9 h-9 rounded-xl flex items-center justify-center text-sm font-bold shrink-0',
+        isWaitlist ? 'bg-amber-100 text-amber-600' : 'bg-orange-50 text-orange-600'
+      )}>
+        {isWaitlist ? `候${index + 1}` : index + 1}
+      </span>
+      <div className="flex-1 min-w-0">
+        <span className="font-bold text-stone-800">
+          {entry.name}
+          {myIds.has(entry.id) && (
+            <span className="ml-2 text-[10px] bg-orange-600 text-white px-2 py-0.5 rounded-full align-middle">我</span>
+          )}
+        </span>
+        {entry.industry && (
+          <p className="text-xs text-stone-400 truncate">{entry.industry}</p>
+        )}
+      </div>
+    </li>
+  );
+
+  return (
+    <div className="pt-24 min-h-screen bg-stone-50 pb-20">
+      <div className="max-w-2xl mx-auto px-4 sm:px-6">
+        <Link to={`/event/${event.id}`} className="inline-flex items-center gap-2 text-stone-400 hover:text-orange-600 mb-6 text-sm font-medium transition-colors">
+          <ChevronRight className="w-4 h-4 rotate-180" /> 返回活動頁
+        </Link>
+
+        {/* 活動資訊卡 */}
+        <div className="bg-gradient-to-br from-orange-600 via-rose-500 to-orange-500 rounded-3xl p-8 text-white shadow-xl shadow-orange-200 relative overflow-hidden">
+          <div className="absolute -right-2 -top-4 text-7xl opacity-15 rotate-[-8deg] select-none">🍢🍻</div>
+          <h1 className="text-2xl md:text-3xl font-bold mb-1">{event.title}</h1>
+          <p className="text-orange-100 text-sm mb-6">報名接龍・名單即時公開</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
+            <div className="flex items-center gap-2"><Calendar className="w-4 h-4 shrink-0 opacity-80" />{event.start_date}{event.end_date && event.end_date !== event.start_date ? ` ~ ${event.end_date}` : ''}</div>
+            {settings.event_time && <div className="flex items-center gap-2"><Clock className="w-4 h-4 shrink-0 opacity-80" />{settings.event_time}</div>}
+            {settings.event_location && <div className="flex items-center gap-2"><MapPin className="w-4 h-4 shrink-0 opacity-80" />{settings.event_location}</div>}
+            {settings.fee && <div className="flex items-center gap-2"><DollarSign className="w-4 h-4 shrink-0 opacity-80" />{settings.fee}</div>}
+            {settings.event_address && <div className="flex items-center gap-2 sm:col-span-2"><MapPin className="w-4 h-4 shrink-0 opacity-80" />{settings.event_address}</div>}
+          </div>
+        </div>
+
+        {/* 統計列 */}
+        <div className="grid grid-cols-3 gap-3 mt-6">
+          <div className="bg-white rounded-2xl border border-stone-100 p-4 text-center shadow-sm">
+            <p className="text-2xl font-bold text-emerald-500">{confirmed.length}</p>
+            <p className="text-xs text-stone-400 mt-1">正取</p>
+          </div>
+          <div className="bg-white rounded-2xl border border-stone-100 p-4 text-center shadow-sm">
+            <p className={cn('text-2xl font-bold', isFull ? 'text-orange-500' : 'text-emerald-500')}>{isFull ? '滿' : remain}</p>
+            <p className="text-xs text-stone-400 mt-1">{isFull ? '已額滿' : '剩餘名額'}</p>
+          </div>
+          <div className="bg-white rounded-2xl border border-stone-100 p-4 text-center shadow-sm">
+            <p className="text-2xl font-bold text-amber-500">{waitlist.length}</p>
+            <p className="text-xs text-stone-400 mt-1">候補</p>
+          </div>
+        </div>
+        <div className="h-2.5 bg-orange-100 rounded-full overflow-hidden mt-3">
+          <div
+            className="h-full bg-gradient-to-r from-emerald-400 to-orange-500 rounded-full transition-all duration-500"
+            style={{ width: `${capacity > 0 ? Math.min(100, (confirmed.length / capacity) * 100) : 0}%` }}
+          />
+        </div>
+
+        {/* 報名表單 */}
+        <div className="bg-white rounded-3xl border border-stone-100 shadow-sm p-6 md:p-8 mt-6">
+          <h2 className="text-lg font-bold text-stone-900 mb-4">📝 我要報名</h2>
+          {!settings.registration_open ? (
+            <div className="bg-red-50 border border-red-100 text-red-500 rounded-2xl px-5 py-4 text-center text-sm font-medium">
+              報名目前已關閉
+            </div>
+          ) : (
+            <form onSubmit={handleRegister} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-stone-700 mb-2">姓名 <span className="text-orange-600">*</span></label>
+                <input
+                  value={name} onChange={e => setName(e.target.value)} maxLength={40} autoComplete="name"
+                  placeholder="您的稱呼"
+                  className="w-full px-4 py-3 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600 focus:border-transparent"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-stone-700 mb-2">產業 / 品牌 <span className="text-orange-600">*</span></label>
+                <input
+                  value={industry} onChange={e => setIndustry(e.target.value)} maxLength={60}
+                  placeholder="例如：西式外燴、室內設計…"
+                  className="w-full px-4 py-3 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600 focus:border-transparent"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-stone-700 mb-2">聯絡方式（電話或 Email）<span className="text-orange-600">*</span></label>
+                <input
+                  value={contact} onChange={e => setContact(e.target.value)} maxLength={80}
+                  placeholder="僅主辦看得到，不會顯示在名單上"
+                  className="w-full px-4 py-3 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600 focus:border-transparent"
+                  required
+                />
+                <p className="text-xs text-stone-400 mt-2">🔒 聯絡方式不會公開，只有主辦匯出名單時看得到。</p>
+              </div>
+              {isFull && (
+                <div className="bg-amber-50 border border-amber-100 text-amber-600 rounded-2xl px-4 py-3 text-xs">
+                  ⚠️ 正取名額已滿，送出後將排入候補，若有人取消會自動遞補。
+                </div>
+              )}
+              <button
+                type="submit" disabled={submitting}
+                className="w-full py-4 rounded-xl bg-gradient-to-r from-orange-600 to-rose-500 text-white font-bold text-lg shadow-lg shadow-orange-200 hover:opacity-90 transition-all disabled:opacity-50"
+              >
+                {submitting ? '送出中...' : isFull ? '排候補報名 ⏳' : '送出報名 🍢'}
+              </button>
+            </form>
+          )}
+        </div>
+
+        {/* 我的報名 */}
+        {mySignups.length > 0 && (
+          <div className="bg-orange-50 border border-dashed border-orange-200 rounded-3xl p-6 mt-6">
+            <h3 className="font-bold text-stone-800 mb-3">✅ 我的報名</h3>
+            <div className="space-y-2">
+              {mySignups.map(m => {
+                const entry = entries.find(e => e.id === m.id);
+                if (!entry) return null;
+                return (
+                  <div key={m.id} className="flex items-center gap-3">
+                    <span className="flex-1 text-sm font-medium text-stone-700">
+                      {entry.name}
+                      <span className={cn(
+                        'ml-2 text-[10px] px-2 py-0.5 rounded-full text-white',
+                        entry.status === 'confirmed' ? 'bg-emerald-500' : 'bg-amber-500'
+                      )}>
+                        {entry.status === 'confirmed' ? '正取' : '候補'}
+                      </span>
+                    </span>
+                    <button
+                      onClick={() => handleCancel(m.id, m.cancel_token)}
+                      className="text-xs font-bold text-red-500 border border-red-200 px-3 py-1.5 rounded-lg hover:bg-red-50 transition-colors"
+                    >
+                      取消報名
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* 正取名單 */}
+        <div className="mt-8">
+          <div className="flex items-center gap-2 mb-3 px-1">
+            <h2 className="text-lg font-bold text-stone-900">🍻 報名接龍</h2>
+            <span className="text-xs bg-white border border-stone-200 text-stone-500 px-2.5 py-0.5 rounded-full">{confirmed.length} 人</span>
+          </div>
+          <div className="bg-white rounded-3xl border border-stone-100 shadow-sm px-3 py-2">
+            {confirmed.length > 0 ? (
+              <ol>{confirmed.map((entry, i) => entryRow(entry, i, false))}</ol>
+            ) : (
+              <p className="text-center text-stone-400 text-sm py-10">還沒有人報名，搶頭香吧！</p>
+            )}
+          </div>
+        </div>
+
+        {/* 候補名單 */}
+        {waitlist.length > 0 && (
+          <div className="mt-8">
+            <div className="flex items-center gap-2 mb-3 px-1">
+              <h2 className="text-lg font-bold text-stone-900">⏳ 候補名單</h2>
+              <span className="text-xs bg-white border border-stone-200 text-stone-500 px-2.5 py-0.5 rounded-full">{waitlist.length} 人</span>
+            </div>
+            <div className="bg-white rounded-3xl border border-stone-100 shadow-sm px-3 py-2">
+              <ol>{waitlist.map((entry, i) => entryRow(entry, i, true))}</ol>
+            </div>
+          </div>
+        )}
+
+        <p className="text-center text-xs text-stone-400 mt-10">名單每 20 秒自動更新・食在力量俱樂部</p>
+      </div>
+
+      {/* Toast */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 30 }}
+            className={cn(
+              'fixed bottom-8 left-1/2 -translate-x-1/2 z-[80] px-6 py-3 rounded-full text-white text-sm font-medium shadow-2xl max-w-[90vw]',
+              toast.err ? 'bg-red-600' : 'bg-stone-900'
+            )}
+          >
+            {toast.msg}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
@@ -2062,6 +2432,14 @@ const AdminDashboard = () => {
   const [eventLinkedLocationIds, setEventLinkedLocationIds] = useState<string[]>([]);
   const [locationModalSearch, setLocationModalSearch] = useState('');
   const [savingEventLocations, setSavingEventLocations] = useState(false);
+
+  // 報名接龍管理 modal
+  const [showSignupAdminModal, setShowSignupAdminModal] = useState(false);
+  const [signupAdminEvent, setSignupAdminEvent] = useState<Event | null>(null);
+  const [signupAdminSettings, setSignupAdminSettings] = useState<SignupSettings | null>(null);
+  const [signupAdminEntries, setSignupAdminEntries] = useState<SignupEntry[]>([]);
+  const [signupAdminForm, setSignupAdminForm] = useState({ capacity: '40', fee: '', event_time: '', event_location: '', event_address: '' });
+  const [savingSignupAdmin, setSavingSignupAdmin] = useState(false);
   const [editingLocation, setEditingLocation] = useState<Location | null>(null);
   const [showBulkImport, setShowBulkImport] = useState(false);
   const [bulkImportText, setBulkImportText] = useState('');
@@ -2523,6 +2901,99 @@ const AdminDashboard = () => {
     }
   };
 
+  const fetchSignupAdminData = async (eventId: string) => {
+    // 管理員（authenticated）有完整欄位權限，含 contact
+    const { data: settingsData } = await supabase.from('signup_settings').select('*').eq('event_id', eventId).maybeSingle();
+    const { data: entriesData } = await supabase.from('signup_entries').select('*').eq('event_id', eventId).order('created_at', { ascending: true });
+    setSignupAdminSettings((settingsData as SignupSettings) || null);
+    setSignupAdminEntries((entriesData as SignupEntry[]) || []);
+    return settingsData as SignupSettings | null;
+  };
+
+  const handleOpenSignupAdmin = async (event: Event) => {
+    setSignupAdminEvent(event);
+    const settingsData = await fetchSignupAdminData(event.id);
+    setSignupAdminForm({
+      capacity: String(settingsData?.capacity ?? 40),
+      fee: settingsData?.fee || '',
+      event_time: settingsData?.event_time || '',
+      event_location: settingsData?.event_location || '',
+      event_address: settingsData?.event_address || '',
+    });
+    setShowSignupAdminModal(true);
+  };
+
+  const handleSaveSignupSettings = async () => {
+    if (!signupAdminEvent) return;
+    const cap = parseInt(signupAdminForm.capacity, 10);
+    if (isNaN(cap) || cap < 0) { alert('名額需為 0 以上的數字'); return; }
+    setSavingSignupAdmin(true);
+    try {
+      const isNew = !signupAdminSettings;
+      const { error } = await supabase.from('signup_settings').upsert({
+        event_id: signupAdminEvent.id,
+        capacity: cap,
+        registration_open: signupAdminSettings?.registration_open ?? true,
+        fee: signupAdminForm.fee || null,
+        event_time: signupAdminForm.event_time || null,
+        event_location: signupAdminForm.event_location || null,
+        event_address: signupAdminForm.event_address || null,
+      });
+      if (error) throw error;
+      if (!isNew) {
+        // 名額調整走 RPC，調高名額時會自動遞補候補
+        const { error: rpcError } = await supabase.rpc('signup_admin_update', {
+          p_event_id: signupAdminEvent.id, p_capacity: cap, p_open: signupAdminSettings!.registration_open,
+        });
+        if (rpcError) throw rpcError;
+      }
+      await fetchSignupAdminData(signupAdminEvent.id);
+      alert(isNew ? '已開啟報名接龍！' : '已更新報名設定');
+    } catch (e: any) {
+      alert(`儲存失敗: ${e.message}`);
+    } finally {
+      setSavingSignupAdmin(false);
+    }
+  };
+
+  const handleToggleSignupOpen = async () => {
+    if (!signupAdminEvent || !signupAdminSettings) return;
+    const { error } = await supabase.rpc('signup_admin_update', {
+      p_event_id: signupAdminEvent.id,
+      p_capacity: signupAdminSettings.capacity,
+      p_open: !signupAdminSettings.registration_open,
+    });
+    if (error) { alert(`切換失敗: ${error.message}`); return; }
+    await fetchSignupAdminData(signupAdminEvent.id);
+  };
+
+  const formatSignupTime = (ts: string) =>
+    new Date(ts).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' });
+
+  const handleDownloadSignupCsv = () => {
+    const head = ['編號', '姓名', '產業/品牌', '聯絡方式', '狀態', '報名時間'];
+    const lines = signupAdminEntries.map((r, i) => [
+      i + 1, r.name, r.industry || '', r.contact || '',
+      r.status === 'confirmed' ? '正取' : '候補', formatSignupTime(r.created_at),
+    ]);
+    const csv = '\ufeff' + [head, ...lines].map(a => a.map(x => `"${String(x).replace(/"/g, '""')}"`).join(',')).join('\r\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${signupAdminEvent?.title || '活動'}_報名名單.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleCopySignupText = () => {
+    const conf = signupAdminEntries.filter(r => r.status === 'confirmed');
+    const wl = signupAdminEntries.filter(r => r.status === 'waitlist');
+    let text = conf.map((r, i) => `${i + 1}.${r.name}${r.industry ? '/' + r.industry : ''}`).join('\n');
+    if (wl.length) text += '\n額滿————\n' + wl.map((r, i) => `候補${i + 1} ${r.name}${r.industry ? '/' + r.industry : ''}`).join('\n');
+    navigator.clipboard.writeText(text).then(() => alert('已複製接龍文字')).catch(() => alert('複製失敗'));
+  };
+
   const handleBulkImport = async () => {
     const lines = bulkImportText.split(/\r?\n/).map((l: string) => l.trim()).filter(Boolean);
     if (!lines.length) return;
@@ -2864,6 +3335,13 @@ const AdminDashboard = () => {
                           <td className="py-4 text-sm text-stone-500">{event.start_date}</td>
                           <td className="py-4 text-right">
                             <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button
+                                onClick={() => handleOpenSignupAdmin(event)}
+                                className="px-2 py-1 text-xs font-bold text-orange-600 hover:bg-orange-50 rounded-lg flex items-center gap-1 transition-colors"
+                                title="報名接龍管理"
+                              >
+                                <ClipboardList className="w-3 h-3" /> 報名
+                              </button>
                               <button
                                 onClick={() => handleOpenEventLocations(event)}
                                 className="px-2 py-1 text-xs font-bold text-orange-600 hover:bg-orange-50 rounded-lg flex items-center gap-1 transition-colors"
@@ -3875,6 +4353,160 @@ const AdminDashboard = () => {
         )}
       </AnimatePresence>
 
+      {/* Signup Admin Modal */}
+      <AnimatePresence>
+        {showSignupAdminModal && signupAdminEvent && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => !savingSignupAdmin && setShowSignupAdminModal(false)}
+              className="absolute inset-0 bg-stone-900/60 backdrop-blur-sm" />
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
+              className="relative w-full max-w-3xl bg-white rounded-3xl shadow-2xl overflow-hidden max-h-[88vh] flex flex-col">
+
+              {/* Header */}
+              <div className="p-6 border-b border-stone-100 flex justify-between items-start shrink-0">
+                <div>
+                  <h3 className="text-xl font-bold text-stone-900">🍢 報名接龍管理</h3>
+                  <p className="text-sm text-stone-400 mt-1">{signupAdminEvent.title}</p>
+                  {signupAdminSettings && (
+                    <a href={`/event/${signupAdminEvent.id}/signup`} target="_blank" rel="noopener noreferrer"
+                      className="text-xs text-orange-600 font-bold hover:underline mt-1 inline-block">
+                      開啟公開報名頁 ↗
+                    </a>
+                  )}
+                </div>
+                <button onClick={() => setShowSignupAdminModal(false)} className="text-stone-400 hover:text-stone-600">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-6 space-y-8">
+                {/* 報名設定 */}
+                <section>
+                  <h4 className="text-sm font-bold text-stone-400 uppercase tracking-widest mb-4">
+                    {signupAdminSettings ? '報名設定' : '尚未開啟報名，填寫設定後儲存即可開放'}
+                  </h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-stone-700 mb-2">名額上限</label>
+                      <input type="number" min="0" value={signupAdminForm.capacity}
+                        onChange={e => setSignupAdminForm({ ...signupAdminForm, capacity: e.target.value })}
+                        className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-stone-700 mb-2">費用（選填）</label>
+                      <input value={signupAdminForm.fee} placeholder="例：1,500 元／人"
+                        onChange={e => setSignupAdminForm({ ...signupAdminForm, fee: e.target.value })}
+                        className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-stone-700 mb-2">活動時間（選填）</label>
+                      <input value={signupAdminForm.event_time} placeholder="例：18:00"
+                        onChange={e => setSignupAdminForm({ ...signupAdminForm, event_time: e.target.value })}
+                        className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-stone-700 mb-2">地點（選填）</label>
+                      <input value={signupAdminForm.event_location} placeholder="例：松江本店"
+                        onChange={e => setSignupAdminForm({ ...signupAdminForm, event_location: e.target.value })}
+                        className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" />
+                    </div>
+                    <div className="col-span-2">
+                      <label className="block text-sm font-medium text-stone-700 mb-2">地址（選填）</label>
+                      <input value={signupAdminForm.event_address} placeholder="例：臺北市中山區民權東路二段152巷1號"
+                        onChange={e => setSignupAdminForm({ ...signupAdminForm, event_address: e.target.value })}
+                        className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" />
+                    </div>
+                  </div>
+                  <div className="flex gap-3 mt-4">
+                    <button onClick={handleSaveSignupSettings} disabled={savingSignupAdmin}
+                      className="flex-1 py-3 rounded-xl bg-orange-600 text-white font-bold hover:bg-orange-500 disabled:opacity-50 transition-colors">
+                      {savingSignupAdmin ? '儲存中...' : signupAdminSettings ? '更新設定' : '開啟報名接龍'}
+                    </button>
+                    {signupAdminSettings && (
+                      <button onClick={handleToggleSignupOpen}
+                        className={cn(
+                          'flex-1 py-3 rounded-xl font-bold border transition-colors',
+                          signupAdminSettings.registration_open
+                            ? 'border-red-200 text-red-500 hover:bg-red-50'
+                            : 'border-emerald-200 text-emerald-600 hover:bg-emerald-50'
+                        )}>
+                        {signupAdminSettings.registration_open ? '🔒 關閉報名' : '🔓 開放報名'}
+                      </button>
+                    )}
+                  </div>
+                </section>
+
+                {/* 名單 */}
+                {signupAdminSettings && (
+                  <section>
+                    <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                      <h4 className="text-sm font-bold text-stone-400 uppercase tracking-widest">
+                        報名名單
+                        <span className="ml-2 text-orange-600">
+                          正取 {signupAdminEntries.filter(r => r.status === 'confirmed').length} / {signupAdminSettings.capacity}
+                          ・候補 {signupAdminEntries.filter(r => r.status === 'waitlist').length}
+                        </span>
+                      </h4>
+                      <div className="flex gap-2">
+                        <button onClick={handleDownloadSignupCsv} disabled={signupAdminEntries.length === 0}
+                          className="px-3 py-2 rounded-lg bg-emerald-50 text-emerald-600 text-xs font-bold flex items-center gap-1 hover:bg-emerald-100 disabled:opacity-40 transition-colors">
+                          <Download className="w-3.5 h-3.5" /> 下載 CSV
+                        </button>
+                        <button onClick={handleCopySignupText} disabled={signupAdminEntries.length === 0}
+                          className="px-3 py-2 rounded-lg bg-stone-100 text-stone-600 text-xs font-bold flex items-center gap-1 hover:bg-stone-200 disabled:opacity-40 transition-colors">
+                          <Copy className="w-3.5 h-3.5" /> 複製接龍文字
+                        </button>
+                        <button onClick={() => fetchSignupAdminData(signupAdminEvent.id)}
+                          className="p-2 rounded-lg text-stone-400 hover:text-orange-600 transition-colors" title="重新整理">
+                          <RefreshCw className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="overflow-x-auto border border-stone-100 rounded-2xl">
+                      <table className="w-full text-left text-sm">
+                        <thead>
+                          <tr className="border-b border-stone-100 text-stone-400 text-xs bg-stone-50">
+                            <th className="py-3 px-4 font-medium">#</th>
+                            <th className="py-3 px-4 font-medium">姓名</th>
+                            <th className="py-3 px-4 font-medium">產業/品牌</th>
+                            <th className="py-3 px-4 font-medium">聯絡方式</th>
+                            <th className="py-3 px-4 font-medium">狀態</th>
+                            <th className="py-3 px-4 font-medium">報名時間</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-stone-50">
+                          {signupAdminEntries.map((entry, i) => (
+                            <tr key={entry.id}>
+                              <td className="py-3 px-4 text-stone-400">{i + 1}</td>
+                              <td className="py-3 px-4 font-medium">{entry.name}</td>
+                              <td className="py-3 px-4 text-stone-500">{entry.industry}</td>
+                              <td className="py-3 px-4 text-stone-500">{entry.contact}</td>
+                              <td className="py-3 px-4">
+                                <span className={cn(
+                                  'text-xs px-2 py-1 rounded-full',
+                                  entry.status === 'confirmed' ? 'bg-green-50 text-green-600' : 'bg-amber-50 text-amber-600'
+                                )}>
+                                  {entry.status === 'confirmed' ? '正取' : '候補'}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 text-stone-400 text-xs whitespace-nowrap">{formatSignupTime(entry.created_at)}</td>
+                            </tr>
+                          ))}
+                          {signupAdminEntries.length === 0 && (
+                            <tr><td colSpan={6} className="py-10 text-center text-stone-400">目前尚無報名</td></tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </section>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* Bulk Import Modal */}
       <AnimatePresence>
         {showBulkImport && (
@@ -4411,6 +5043,7 @@ export default function App() {
             <Route path="/" element={<Home />} />
             <Route path="/events" element={<EventsPage />} />
             <Route path="/event/:id" element={<EventDetail />} />
+            <Route path="/event/:id/signup" element={<EventSignupPage />} />
             <Route path="/brand/:id" element={<BrandDetail />} />
             <Route path="/partner/:id" element={<PartnerDetail />} />
             <Route path="/promotions" element={<PromotionsPage />} />

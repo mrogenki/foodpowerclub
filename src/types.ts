@@ -79,6 +79,27 @@ export interface KOLReview {
   created_at: string;
 }
 
+export interface SignupSettings {
+  event_id: string;
+  capacity: number;
+  registration_open: boolean;
+  fee?: string;
+  event_time?: string;
+  event_location?: string;
+  event_address?: string;
+  created_at?: string;
+}
+
+export interface SignupEntry {
+  id: string;
+  event_id: string;
+  name: string;
+  industry: string;
+  contact?: string; // 僅管理員（authenticated）讀得到，匿名查詢不可 select 此欄位
+  status: 'confirmed' | 'waitlist';
+  created_at: string;
+}
+
 export interface Promotion {
   id: string;
   brand_id: string;
