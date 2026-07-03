@@ -1,3 +1,6 @@
+// 活動分類（未來可能新增，DB 為 TEXT 欄位）
+export type EventCategory = 'festival' | 'dining';
+
 export interface Event {
   id: string;
   title: string;
@@ -7,6 +10,7 @@ export interface Event {
   start_date: string;
   end_date: string;
   type: 'current' | 'past';
+  category: EventCategory;
   image_url: string;
   video_url?: string;
   created_at: string;

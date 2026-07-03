@@ -81,7 +81,7 @@ npm run lint      # tsc --noEmit 型別檢查
 
 | 資料表 | 說明 |
 |---|---|
-| events | 活動（id, title, description, content, image_url, video_url, start_date, end_date, type） |
+| events | 活動（id, title, description, content, image_url, video_url, start_date, end_date, type, category）— category：'festival' 美食祭 / 'dining' 美食探店（TEXT，新增分類改 App.tsx 的 EVENT_CATEGORIES 即可） |
 | brands | 品牌（id, event_id, name, category, description, promotion_info, logo_url, content） |
 | partners | 贊助夥伴（id, event_id, name, type, sort_order, logo_url, content） |
 | kol_reviews | 開箱分享（id, brand_id, title, kol_name, kol_avatar_url, media_type, media_url, video_embed_url, content） |
