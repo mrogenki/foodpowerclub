@@ -9,6 +9,8 @@ export interface Event {
   content: string;
   start_date: string;
   end_date: string;
+  start_time?: string | null; // TIME 欄位，格式 HH:MM:SS，選填
+  end_time?: string | null;
   type: 'current' | 'past';
   category: EventCategory;
   image_url: string;
