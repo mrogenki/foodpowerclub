@@ -58,7 +58,7 @@ const queryClient = new QueryClient({
   },
 });
 import { cn } from './lib/utils';
-import type { Event, EventCategory, Brand, Partner, Location, Review, KOLReview, Promotion, SignupSettings, SignupEntry } from './types';
+import type { Event, EventCategory, Brand, Partner, Location, Review, KOLReview, Promotion, SignupSettings, SignupEntry, AdminUser } from './types';
 
 import { APIProvider, Map, AdvancedMarker, Pin, InfoWindow, useMapsLibrary } from '@vis.gl/react-google-maps';
 
@@ -2437,7 +2437,10 @@ const PlaceAutocomplete = ({ onPlaceSelect }: PlaceAutocompleteProps) => {
 };
 
 const AdminDashboard = () => {
-  const [activeTab, setActiveTab] = useState<'events' | 'brands' | 'partners' | 'locations' | 'kol_reviews' | 'promotions'>('events');
+  const [activeTab, setActiveTab] = useState<'events' | 'brands' | 'partners' | 'locations' | 'kol_reviews' | 'promotions' | 'accounts'>('events');
+  const [adminRole, setAdminRole] = useState<'owner' | 'editor' | null>(null);
+  const [myUserId, setMyUserId] = useState<string>('');
+  const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
   const [allEvents, setAllEvents] = useState<Event[]>([]);
   const [allBrands, setAllBrands] = useState<Brand[]>([]);
@@ -2543,7 +2546,16 @@ const AdminDashboard = () => {
   useEffect(() => {
     const checkAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) navigate('/login');
+      if (!session) { navigate('/login'); return; }
+      setMyUserId(session.user.id);
+      const { data: me } = await supabase.from('admin_users').select('role').eq('user_id', session.user.id).maybeSingle();
+      if (!me) {
+        alert('此帳號沒有管理權限，請聯絡管理員。');
+        await supabase.auth.signOut();
+        navigate('/login');
+        return;
+      }
+      setAdminRole(me.role as 'owner' | 'editor');
     };
     checkAuth();
     fetchData();
@@ -3273,6 +3285,74 @@ const AdminDashboard = () => {
     navigate('/');
   };
 
+  // --- 帳號管理（僅 owner）：寫入操作透過 admin-accounts Edge Function（service role） ---
+  const fetchAdminUsers = async () => {
+    const { data } = await supabase.from('admin_users').select('*').order('created_at', { ascending: true });
+    setAdminUsers((data as AdminUser[]) || []);
+  };
+
+  useEffect(() => {
+    if (activeTab === 'accounts') fetchAdminUsers();
+  }, [activeTab]);
+
+  const callAdminAccounts = async (payload: Record<string, unknown>) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-accounts`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${session?.access_token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || '操作失敗');
+    return body;
+  };
+
+  const handleCreateAdmin = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const fd = new FormData(form);
+    try {
+      await callAdminAccounts({ action: 'create', email: fd.get('email'), password: fd.get('password'), role: fd.get('role') });
+      form.reset();
+      await fetchAdminUsers();
+      alert('管理員帳號已建立！');
+    } catch (err) {
+      alert(`建立失敗：${err instanceof Error ? err.message : '未知錯誤'}`);
+    }
+  };
+
+  const handleChangeAdminRole = async (target: AdminUser, role: string) => {
+    if (role === target.role) return;
+    try {
+      await callAdminAccounts({ action: 'update_role', user_id: target.user_id, role });
+      await fetchAdminUsers();
+    } catch (err) {
+      alert(`更新失敗：${err instanceof Error ? err.message : '未知錯誤'}`);
+      await fetchAdminUsers();
+    }
+  };
+
+  const handleResetAdminPassword = async (target: AdminUser) => {
+    const password = prompt(`為 ${target.email} 設定新密碼（至少 8 碼）：`);
+    if (!password) return;
+    try {
+      await callAdminAccounts({ action: 'reset_password', user_id: target.user_id, password });
+      alert('密碼已更新');
+    } catch (err) {
+      alert(`更新失敗：${err instanceof Error ? err.message : '未知錯誤'}`);
+    }
+  };
+
+  const handleDeleteAdmin = async (target: AdminUser) => {
+    if (!confirm(`確定刪除管理員「${target.email}」？此帳號將無法再登入管理中心。`)) return;
+    try {
+      await callAdminAccounts({ action: 'delete', user_id: target.user_id });
+      await fetchAdminUsers();
+    } catch (err) {
+      alert(`刪除失敗：${err instanceof Error ? err.message : '未知錯誤'}`);
+    }
+  };
+
   return (
     <div className="pt-24 min-h-screen bg-stone-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -3342,6 +3422,17 @@ const AdminDashboard = () => {
             >
               地圖管理
             </button>
+            {adminRole === 'owner' && (
+              <button
+                onClick={() => setActiveTab('accounts')}
+                className={cn(
+                  "w-full text-left px-4 py-3 rounded-xl font-medium transition-all",
+                  activeTab === 'accounts' ? "bg-orange-600 text-white shadow-lg" : "text-stone-600 hover:bg-stone-200"
+                )}
+              >
+                帳號管理
+              </button>
+            )}
           </div>
 
           <div className="md:col-span-3 bg-white rounded-3xl p-8 border border-stone-200">
@@ -3778,6 +3869,99 @@ const AdminDashboard = () => {
                       {locations.length === 0 && (
                         <tr>
                           <td colSpan={4} className="py-12 text-center text-stone-400">目前尚無地點資料</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+
+            {activeTab === 'accounts' && adminRole === 'owner' && (
+              <>
+                <div className="mb-6">
+                  <h2 className="text-xl font-bold">帳號管理</h2>
+                  <p className="text-sm text-stone-500 mt-1">owner 可管理帳號與所有內容；editor 只能管理內容。</p>
+                </div>
+
+                <form onSubmit={handleCreateAdmin} className="bg-stone-50 rounded-2xl p-6 mb-8 grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-2">Email</label>
+                    <input type="email" name="email" className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" required />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-2">密碼（至少 8 碼）</label>
+                    <input type="password" name="password" minLength={8} className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" required />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-2">角色</label>
+                    <select name="role" defaultValue="editor" className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600">
+                      <option value="editor">editor（內容管理）</option>
+                      <option value="owner">owner（帳號＋內容）</option>
+                    </select>
+                  </div>
+                  <button type="submit" className="bg-stone-900 text-white px-4 py-2.5 rounded-xl text-sm font-medium flex items-center justify-center gap-2">
+                    <Plus className="w-4 h-4" /> 新增帳號
+                  </button>
+                </form>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="border-b border-stone-100 text-stone-400 text-sm">
+                        <th className="pb-4 font-medium">Email</th>
+                        <th className="pb-4 font-medium">角色</th>
+                        <th className="pb-4 font-medium">建立時間</th>
+                        <th className="pb-4 font-medium text-right">操作</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-stone-50">
+                      {adminUsers.map((u) => (
+                        <tr key={u.user_id} className="group">
+                          <td className="py-4 font-medium">
+                            {u.email}
+                            {u.user_id === myUserId && <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-orange-50 text-orange-600">我</span>}
+                          </td>
+                          <td className="py-4">
+                            {u.user_id === myUserId ? (
+                              <span className="text-sm text-stone-600">{u.role}</span>
+                            ) : (
+                              <select
+                                value={u.role}
+                                onChange={(e) => handleChangeAdminRole(u, e.target.value)}
+                                className="px-3 py-1.5 rounded-lg border border-stone-200 text-sm outline-none focus:ring-2 focus:ring-orange-600"
+                              >
+                                <option value="editor">editor</option>
+                                <option value="owner">owner</option>
+                              </select>
+                            )}
+                          </td>
+                          <td className="py-4 text-sm text-stone-500">
+                            {new Date(u.created_at).toLocaleDateString('zh-TW', { timeZone: 'Asia/Taipei' })}
+                          </td>
+                          <td className="py-4 text-right">
+                            <div className="flex justify-end gap-2">
+                              <button
+                                onClick={() => handleResetAdminPassword(u)}
+                                className="px-2 py-1 text-xs font-bold text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
+                              >
+                                重設密碼
+                              </button>
+                              {u.user_id !== myUserId && (
+                                <button
+                                  onClick={() => handleDeleteAdmin(u)}
+                                  className="p-2 text-stone-400 hover:text-red-600"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                      {adminUsers.length === 0 && (
+                        <tr>
+                          <td colSpan={4} className="py-12 text-center text-stone-400">載入中...</td>
                         </tr>
                       )}
                     </tbody>
