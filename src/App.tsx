@@ -58,7 +58,7 @@ const queryClient = new QueryClient({
   },
 });
 import { cn } from './lib/utils';
-import type { Event, Brand, Partner, Location, Review, KOLReview, Promotion, SignupSettings, SignupEntry } from './types';
+import type { Event, EventCategory, Brand, Partner, Location, Review, KOLReview, Promotion, SignupSettings, SignupEntry } from './types';
 
 import { APIProvider, Map, AdvancedMarker, Pin, InfoWindow, useMapsLibrary } from '@vis.gl/react-google-maps';
 
@@ -78,6 +78,14 @@ const SkeletonCard = () => (
 const DEFAULT_EVENT_IMAGE = "https://images.unsplash.com/photo-1555939594-58d7cb561ad1?q=80&w=1974&auto=format&fit=crop";
 const DEFAULT_LOGO = "https://placehold.co/400x400/orange/white?text=Logo";
 const DEFAULT_AVATAR = "https://placehold.co/100x100/stone/white?text=KOL";
+
+// 活動分類（新增分類時在此加一筆即可，DB category 欄位為 TEXT）
+const EVENT_CATEGORIES: { value: EventCategory; label: string; emoji: string; description: string }[] = [
+  { value: 'festival', label: '美食祭', emoji: '🎪', description: '區間限定的大型行銷活動，募集多家餐廳一起參與。' },
+  { value: 'dining', label: '美食探店', emoji: '🍽️', description: '針對特定餐廳發起的聚餐活動，名額有限，歡迎接龍報名。' },
+];
+const eventCategoryLabel = (category: string) =>
+  EVENT_CATEGORIES.find((c) => c.value === category)?.label || category;
 
 // --- Utilities ---
 
@@ -683,41 +691,60 @@ const EventsPage = () => {
           <p className="text-stone-500 max-w-2xl mx-auto">探索「食在力量俱樂部」的所有精彩活動，從過去的經典回顧到現在的熱門盛宴。</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {events.map((event) => (
-            <motion.div 
-              key={event.id}
-              whileHover={{ y: -10 }}
-              className="bg-white rounded-3xl overflow-hidden shadow-sm border border-stone-100 group"
-            >
-              <div className="relative h-64 overflow-hidden">
-                <SafeImage src={event.image_url} className="w-full h-full object-cover object-center group-hover:scale-110 transition-transform duration-500" alt={event.title} />
-                <div className="absolute top-4 right-4">
-                  <span className={cn(
-                    "px-3 py-1 rounded-full text-xs font-bold text-white shadow-lg",
-                    event.type === 'current' ? "bg-orange-600" : "bg-stone-400"
-                  )}>
-                    {event.type === 'current' ? "進行中" : "已結束"}
-                  </span>
-                </div>
+        {EVENT_CATEGORIES.map((cat) => {
+          // 未收錄在 EVENT_CATEGORIES 的分類值，一併歸入最後一區避免漏顯示
+          const isLastCategory = cat.value === EVENT_CATEGORIES[EVENT_CATEGORIES.length - 1].value;
+          const knownValues = EVENT_CATEGORIES.map((c) => c.value as string);
+          const sectionEvents = events.filter((event) =>
+            event.category === cat.value || (isLastCategory && !knownValues.includes(event.category))
+          );
+          if (sectionEvents.length === 0) return null;
+          return (
+            <section key={cat.value} className="mb-16">
+              <div className="mb-8">
+                <h2 className="text-2xl font-bold text-stone-900 flex items-center gap-2">
+                  <span>{cat.emoji}</span> {cat.label}
+                </h2>
+                <p className="text-stone-500 text-sm mt-2">{cat.description}</p>
               </div>
-              <div className="p-8">
-                <div className="flex items-center gap-2 text-stone-400 text-xs mb-3">
-                  <Calendar className="w-4 h-4" />
-                  <span>{event.start_date} ~ {event.end_date}</span>
-                </div>
-                <h3 className="text-2xl font-bold mb-3 group-hover:text-orange-600 transition-colors">{event.title}</h3>
-                <p className="text-stone-500 text-sm mb-6 line-clamp-2">{event.description}</p>
-                <Link 
-                  to={`/event/${event.id}`} 
-                  className="inline-flex items-center gap-2 text-orange-600 font-bold hover:gap-3 transition-all"
-                >
-                  查看詳情 <ChevronRight className="w-4 h-4" />
-                </Link>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                {sectionEvents.map((event) => (
+                  <motion.div
+                    key={event.id}
+                    whileHover={{ y: -10 }}
+                    className="bg-white rounded-3xl overflow-hidden shadow-sm border border-stone-100 group"
+                  >
+                    <div className="relative h-64 overflow-hidden">
+                      <SafeImage src={event.image_url} className="w-full h-full object-cover object-center group-hover:scale-110 transition-transform duration-500" alt={event.title} />
+                      <div className="absolute top-4 right-4">
+                        <span className={cn(
+                          "px-3 py-1 rounded-full text-xs font-bold text-white shadow-lg",
+                          event.type === 'current' ? "bg-orange-600" : "bg-stone-400"
+                        )}>
+                          {event.type === 'current' ? "進行中" : "已結束"}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="p-8">
+                      <div className="flex items-center gap-2 text-stone-400 text-xs mb-3">
+                        <Calendar className="w-4 h-4" />
+                        <span>{event.start_date} ~ {event.end_date}</span>
+                      </div>
+                      <h3 className="text-2xl font-bold mb-3 group-hover:text-orange-600 transition-colors">{event.title}</h3>
+                      <p className="text-stone-500 text-sm mb-6 line-clamp-2">{event.description}</p>
+                      <Link
+                        to={`/event/${event.id}`}
+                        className="inline-flex items-center gap-2 text-orange-600 font-bold hover:gap-3 transition-all"
+                      >
+                        查看詳情 <ChevronRight className="w-4 h-4" />
+                      </Link>
+                    </div>
+                  </motion.div>
+                ))}
               </div>
-            </motion.div>
-          ))}
-        </div>
+            </section>
+          );
+        })}
       </div>
     </div>
   );
@@ -765,6 +792,9 @@ const EventDetail = () => {
                 <ChevronRight className="w-4 h-4 rotate-180" /> 返回活動列表
               </Link>
               <div className="flex items-center gap-3 mb-4">
+                <span className="px-3 py-1 rounded-full text-xs font-bold text-white bg-white/20 backdrop-blur-sm">
+                  {eventCategoryLabel(event.category)}
+                </span>
                 <span className={cn(
                   "px-3 py-1 rounded-full text-xs font-bold text-white",
                   event.type === 'current' ? "bg-orange-600" : "bg-stone-500"
@@ -2629,6 +2659,7 @@ const AdminDashboard = () => {
       start_date: formData.get('start_date') as string,
       end_date: formData.get('end_date') as string,
       type: formData.get('type') as 'current' | 'past',
+      category: formData.get('category') as EventCategory,
       image_url: imageUrl,
       video_url: formData.get('video_url') as string,
     };
@@ -3315,6 +3346,7 @@ const AdminDashboard = () => {
                     <thead>
                       <tr className="border-b border-stone-100 text-stone-400 text-sm">
                         <th className="pb-4 font-medium">活動名稱</th>
+                        <th className="pb-4 font-medium">分類</th>
                         <th className="pb-4 font-medium">類型</th>
                         <th className="pb-4 font-medium">日期</th>
                         <th className="pb-4 font-medium text-right">操作</th>
@@ -3324,6 +3356,11 @@ const AdminDashboard = () => {
                       {events.map(event => (
                         <tr key={event.id} className="group">
                           <td className="py-4 font-medium">{event.title}</td>
+                          <td className="py-4">
+                            <span className="text-xs px-2 py-1 rounded-full bg-orange-50 text-orange-600">
+                              {eventCategoryLabel(event.category)}
+                            </span>
+                          </td>
                           <td className="py-4">
                             <span className={cn(
                               "text-xs px-2 py-1 rounded-full",
@@ -3791,6 +3828,14 @@ const AdminDashboard = () => {
                     <select name="type" defaultValue={editingEvent?.type || 'current'} className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600">
                       <option value="current">進行中</option>
                       <option value="past">已結束</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-2">活動分類</label>
+                    <select name="category" defaultValue={editingEvent?.category || 'festival'} className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600">
+                      {EVENT_CATEGORIES.map((c) => (
+                        <option key={c.value} value={c.value}>{c.emoji} {c.label}</option>
+                      ))}
                     </select>
                   </div>
                   <div className="col-span-2">
