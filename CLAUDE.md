@@ -165,7 +165,8 @@ CREATE POLICY "Authenticated Write" ON table_name FOR ALL TO authenticated USING
 
 ## 已知問題 / 注意事項
 
-- **MarkerClusterer**：@googlemaps/markerclusterer 與 @vis.gl/react-google-maps 有執行時衝突（TypeError: r4 is not a constructor），已移除，暫不使用
+- **MarkerClusterer**：@googlemaps/markerclusterer 與 @vis.gl/react-google-maps 有執行時衝突（TypeError: r4 is not a constructor），已移除。地圖聚合改用自製方案：`MapMarkers` 元件只渲染視窗內店家，zoom < 13 時做網格聚合（純前端計算，可承受上千家店）
+- **效能模式**：公開列表頁（Home/Events/Promotions/Partners/Map）走 react-query 快取（staleTime 5 分鐘）；SafeImage 預設 `loading="lazy"`；開箱分享頁與地圖店家清單採分頁/載入更多
 - **Supabase Image Transformation**：URL 格式為 `/storage/v1/render/image/public/{bucket}/{path}?width=N&quality=80`（注意 render/image 在 v1 之後）
 - **BlockNote 內容**：以 JSON 字串格式存在 DB，顯示時需用 BlockNote viewer 渲染
 - **影片支援**：YouTube、Shorts、TikTok、Instagram Reels，有自動轉 embed URL 的 helper function

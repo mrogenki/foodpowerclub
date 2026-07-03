@@ -45,7 +45,7 @@ import "@blocknote/mantine/style.css";
 import { MantineProvider } from "@mantine/core";
 import "@mantine/core/styles.css";
 import { supabase } from './lib/supabase';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -60,7 +60,7 @@ const queryClient = new QueryClient({
 import { cn } from './lib/utils';
 import type { Event, EventCategory, Brand, Partner, Location, Review, KOLReview, Promotion, SignupSettings, SignupEntry, AdminUser } from './types';
 
-import { APIProvider, Map, AdvancedMarker, Pin, InfoWindow, useMapsLibrary } from '@vis.gl/react-google-maps';
+import { APIProvider, Map, AdvancedMarker, Pin, InfoWindow, useMapsLibrary, useMap } from '@vis.gl/react-google-maps';
 
 // --- Skeleton Loading 元件 ---
 const SkeletonCard = () => (
@@ -181,7 +181,7 @@ const BlockRenderer = ({ content }: { content: string }) => {
   );
 };
 
-const SafeImage = ({ src, alt, className, fallback = DEFAULT_EVENT_IMAGE, optimize = true, width = 800, ...props }: any) => {
+const SafeImage = ({ src, alt, className, fallback = DEFAULT_EVENT_IMAGE, optimize = true, width = 800, loading = 'lazy', ...props }: any) => {
   const optimized = optimize ? optimizeImageUrl(src || '', width) : (src || '');
   const [imgSrc, setImgSrc] = useState(optimized || fallback);
 
@@ -195,6 +195,8 @@ const SafeImage = ({ src, alt, className, fallback = DEFAULT_EVENT_IMAGE, optimi
       src={imgSrc}
       alt={alt}
       className={className}
+      loading={loading}
+      decoding="async"
       onError={() => {
         if (imgSrc !== fallback) {
           setImgSrc(fallback);
@@ -375,41 +377,32 @@ const Navbar = () => {
 // --- Pages ---
 
 const Home = () => {
-  const [currentEvents, setCurrentEvents] = useState<Event[]>([]);
-  const [pastEvents, setPastEvents] = useState<Event[]>([]);
-  const [promotions, setPromotions] = useState<Promotion[]>([]);
-  const [reviews, setReviews] = useState<KOLReview[]>([]);
-  const [partners, setPartners] = useState<Partner[]>([]);
   const [heroIndex, setHeroIndex] = useState(0);
 
-  useEffect(() => {
-    const fetchHomeData = async () => {
-      // Fetch Events - Order by start_date ascending to get the ones starting earlier first
-      const { data: eventsData } = await supabase.from('events').select('*').order('start_date', { ascending: true });
-      if (eventsData) {
-        setCurrentEvents(eventsData.filter(e => e.type === 'current'));
-        setPastEvents(eventsData.filter(e => e.type === 'past'));
-      }
-
-      // Fetch Promotions
-      const { data: promoData } = await supabase
-        .from('promotions')
-        .select('*, brand:brands(name, logo_url)')
-        .eq('is_active', true)
-        .limit(3)
-        .order('created_at', { ascending: false });
-      if (promoData) setPromotions(promoData as any);
-
-      // Fetch Reviews
-      const { data: reviewsData } = await supabase.from('kol_reviews').select('*').limit(3).order('created_at', { ascending: false });
-      if (reviewsData) setReviews(reviewsData);
-
-      // Fetch Partners
-      const { data: partnersData } = await supabase.from('partners').select('*').order('sort_order', { ascending: true }).limit(6);
-      if (partnersData) setPartners(partnersData);
-    };
-    fetchHomeData();
-  }, []);
+  const { data: homeData } = useQuery({
+    queryKey: ['home'],
+    queryFn: async () => {
+      const [eventsRes, promoRes, reviewsRes, partnersRes] = await Promise.all([
+        supabase.from('events').select('*').order('start_date', { ascending: true }),
+        supabase.from('promotions').select('*, brand:brands(name, logo_url)').eq('is_active', true).limit(3).order('created_at', { ascending: false }),
+        supabase.from('kol_reviews').select('*').limit(3).order('created_at', { ascending: false }),
+        supabase.from('partners').select('*').order('sort_order', { ascending: true }).limit(6),
+      ]);
+      const eventsData = (eventsRes.data as Event[]) || [];
+      return {
+        currentEvents: eventsData.filter(e => e.type === 'current'),
+        pastEvents: eventsData.filter(e => e.type === 'past'),
+        promotions: (promoRes.data as Promotion[]) || [],
+        reviews: (reviewsRes.data as KOLReview[]) || [],
+        partners: (partnersRes.data as Partner[]) || [],
+      };
+    },
+  });
+  const currentEvents = homeData?.currentEvents || [];
+  const pastEvents = homeData?.pastEvents || [];
+  const promotions = homeData?.promotions || [];
+  const reviews = homeData?.reviews || [];
+  const partners = homeData?.partners || [];
 
   // Hero Carousel Timer
   useEffect(() => {
@@ -687,15 +680,13 @@ const Home = () => {
 };
 
 const EventsPage = () => {
-  const [events, setEvents] = useState<Event[]>([]);
-
-  useEffect(() => {
-    const fetchEvents = async () => {
+  const { data: events = [] } = useQuery({
+    queryKey: ['events'],
+    queryFn: async () => {
       const { data } = await supabase.from('events').select('*').order('start_date', { ascending: true });
-      if (data) setEvents(data);
-    };
-    fetchEvents();
-  }, []);
+      return (data as Event[]) || [];
+    },
+  });
 
   return (
     <div className="pt-24 min-h-screen bg-stone-50">
@@ -1627,37 +1618,118 @@ const GOOGLE_MAPS_MAP_ID = import.meta.env.VITE_GOOGLE_MAPS_MAP_ID || 'DEMO_MAP_
 import { TAIWAN_DISTRICTS } from './constants/taiwanDistricts';
 
 
+// 單一店家標記（品牌 logo pin / 一般 Pin）
+const LocationMarker = ({ loc, onSelect }: { loc: Location; onSelect: (loc: Location) => void }) => {
+  const isEventParticipant = loc.location_events && loc.location_events.length > 0;
+  const brand = loc.brand;
+  const pinColor = loc.category === 'BBQ' ? '#ef4444' : loc.category === 'Hotpot' ? '#f97316' : loc.category === 'Drink' ? '#06b6d4' : '#ea580c';
+  return (
+    <AdvancedMarker
+      position={{ lat: loc.lat, lng: loc.lng }}
+      onClick={() => onSelect(loc)}
+      zIndex={brand ? 15 : isEventParticipant ? 10 : 1}
+    >
+      {brand && brand.logo_url ? (
+        <div className="flex flex-col items-center">
+          <div className="w-10 h-10 rounded-full bg-white shadow-lg border-2 border-orange-500 overflow-hidden flex items-center justify-center">
+            <img src={brand.logo_url} alt={brand.name} className="w-8 h-8 rounded-full object-contain" referrerPolicy="no-referrer" />
+          </div>
+          <div className="w-0 h-0 border-l-[6px] border-r-[6px] border-t-[8px] border-l-transparent border-r-transparent border-t-orange-500 -mt-[1px]" />
+        </div>
+      ) : (
+        <Pin
+          background={pinColor}
+          glyphColor={'#fff'}
+          borderColor={isEventParticipant ? '#FFD700' : '#fff'}
+          scale={isEventParticipant ? 1.4 : 1.0}
+        />
+      )}
+    </AdvancedMarker>
+  );
+};
+
+// 地圖標記層：只渲染目前視窗內的店家，低縮放時做網格聚合
+// （純前端計算，不依賴 MarkerClusterer — 該套件與 @vis.gl 有執行時衝突）
+const CLUSTER_MAX_ZOOM = 13; // 縮放 >= 此值時顯示個別標記
+const MapMarkers = ({ locations, onSelect }: { locations: Location[]; onSelect: (loc: Location) => void }) => {
+  const map = useMap();
+  const [view, setView] = useState<{ zoom: number; bounds: google.maps.LatLngBounds | null }>({ zoom: 14, bounds: null });
+
+  useEffect(() => {
+    if (!map) return;
+    const update = () => setView({ zoom: map.getZoom() ?? 14, bounds: map.getBounds() ?? null });
+    update();
+    const listener = map.addListener('idle', update);
+    return () => listener.remove();
+  }, [map]);
+
+  const visible = useMemo(
+    () => (view.bounds ? locations.filter((l) => view.bounds!.contains({ lat: l.lat, lng: l.lng })) : locations),
+    [locations, view]
+  );
+
+  const clusters = useMemo(() => {
+    if (view.zoom >= CLUSTER_MAX_ZOOM) return null;
+    const cell = 360 / Math.pow(2, view.zoom + 3); // 網格隨縮放變細
+    const groups = new globalThis.Map<string, Location[]>();
+    visible.forEach((l) => {
+      const key = `${Math.round(l.lat / cell)}_${Math.round(l.lng / cell)}`;
+      const g = groups.get(key);
+      if (g) g.push(l); else groups.set(key, [l]);
+    });
+    return [...groups.values()];
+  }, [visible, view.zoom]);
+
+  if (!clusters) {
+    return <>{visible.map((loc) => <LocationMarker key={loc.id} loc={loc} onSelect={onSelect} />)}</>;
+  }
+  return (
+    <>
+      {clusters.map((group) => {
+        if (group.length === 1) return <LocationMarker key={group[0].id} loc={group[0]} onSelect={onSelect} />;
+        const lat = group.reduce((s, l) => s + l.lat, 0) / group.length;
+        const lng = group.reduce((s, l) => s + l.lng, 0) / group.length;
+        return (
+          <AdvancedMarker
+            key={`cluster_${group[0].id}`}
+            position={{ lat, lng }}
+            zIndex={20}
+            onClick={() => {
+              map?.panTo({ lat, lng });
+              map?.setZoom(Math.min(view.zoom + 2, CLUSTER_MAX_ZOOM));
+            }}
+          >
+            <div className="w-10 h-10 rounded-full bg-orange-600 text-white font-bold text-sm flex items-center justify-center shadow-lg border-2 border-white cursor-pointer">
+              {group.length}
+            </div>
+          </AdvancedMarker>
+        );
+      })}
+    </>
+  );
+};
+
 const MapPage = () => {
   const [selectedShop, setSelectedShop] = useState<Location | null>(null);
   const [activeCategory, setActiveCategory] = useState<string>('全部');
   const [activeCity, setActiveCity] = useState<string>('全部');
   const [activeDistrict, setActiveDistrict] = useState<string>('全部');
-  const [locations, setLocations] = useState<Location[]>([]);
-  const [loadingLocations, setLoadingLocations] = useState(true);
   const [filterEventOnly, setFilterEventOnly] = useState(false);
+  const LIST_PAGE_SIZE = 24;
+  const [listLimit, setListLimit] = useState(LIST_PAGE_SIZE);
 
-  useEffect(() => {
-    const fetchLocations = async () => {
-      try {
-        setLoadingLocations(true);
-        const { data, error } = await supabase
-          .from('locations')
-          .select('*, location_events(event_id, events(id, title, type)), brand:brands(id, name, logo_url)');
-        if (error) throw error;
-        if (data) setLocations(data);
-      } catch (error: any) {
-        console.error('Fetch locations error:', error);
-      } finally {
-        setLoadingLocations(false);
-      }
-    };
-    fetchLocations();
-  }, []);
+  const { data: locations = [], isLoading: loadingLocations, refetch } = useQuery({
+    queryKey: ['map-locations'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('locations')
+        .select('*, location_events(event_id, events(id, title, type)), brand:brands(id, name, logo_url)');
+      if (error) throw error;
+      return (data as Location[]) || [];
+    },
+  });
 
-  const handleRefresh = async () => {
-    const { data } = await supabase.from('locations').select('*');
-    if (data) setLocations(data);
-  };
+  const handleRefresh = () => refetch();
 
   const categoryMap: Record<string, string> = {
     '全部': '全部',
@@ -1691,9 +1763,8 @@ const MapPage = () => {
   });
 
   useEffect(() => {
-    console.log('Filter changed:', { activeCategory, activeCity, activeDistrict });
-    console.log('Filtered count:', filteredLocations.length);
-  }, [activeCategory, activeCity, activeDistrict, filteredLocations.length]);
+    setListLimit(LIST_PAGE_SIZE); // 篩選變更時重設清單顯示數量
+  }, [activeCategory, activeCity, activeDistrict, filterEventOnly]);
 
   const categories = ['全部', '燒肉', '火鍋', '便當', '手搖'];
 
@@ -1723,35 +1794,7 @@ const MapPage = () => {
               disableDefaultUI={false}
               mapId={GOOGLE_MAPS_MAP_ID}
             >
-              {filteredLocations.map((loc) => {
-                const isEventParticipant = loc.location_events && loc.location_events.length > 0;
-                const brand = loc.brand;
-                const pinColor = loc.category === 'BBQ' ? '#ef4444' : loc.category === 'Hotpot' ? '#f97316' : loc.category === 'Drink' ? '#06b6d4' : '#ea580c';
-                return (
-                  <AdvancedMarker
-                    key={loc.id}
-                    position={{ lat: loc.lat, lng: loc.lng }}
-                    onClick={() => setSelectedShop(loc)}
-                    zIndex={brand ? 15 : isEventParticipant ? 10 : 1}
-                  >
-                    {brand && brand.logo_url ? (
-                      <div className="flex flex-col items-center">
-                        <div className="w-10 h-10 rounded-full bg-white shadow-lg border-2 border-orange-500 overflow-hidden flex items-center justify-center">
-                          <img src={brand.logo_url} alt={brand.name} className="w-8 h-8 rounded-full object-contain" referrerPolicy="no-referrer" />
-                        </div>
-                        <div className="w-0 h-0 border-l-[6px] border-r-[6px] border-t-[8px] border-l-transparent border-r-transparent border-t-orange-500 -mt-[1px]" />
-                      </div>
-                    ) : (
-                      <Pin
-                        background={pinColor}
-                        glyphColor={'#fff'}
-                        borderColor={isEventParticipant ? '#FFD700' : '#fff'}
-                        scale={isEventParticipant ? 1.4 : 1.0}
-                      />
-                    )}
-                  </AdvancedMarker>
-                );
-              })}
+              <MapMarkers locations={filteredLocations} onSelect={setSelectedShop} />
             </Map>
           </div>
 
@@ -2019,7 +2062,7 @@ const MapPage = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {loadingLocations ? (
               Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)
-            ) : filteredLocations.map((loc) => (
+            ) : filteredLocations.slice(0, listLimit).map((loc) => (
               <motion.div
                 key={loc.id}
                 layout
@@ -2099,6 +2142,17 @@ const MapPage = () => {
             ))}
           </div>
 
+          {filteredLocations.length > listLimit && (
+            <div className="text-center">
+              <button
+                onClick={() => setListLimit(listLimit + LIST_PAGE_SIZE)}
+                className="px-8 py-3 bg-white border border-stone-200 rounded-xl text-stone-700 font-bold text-sm hover:border-orange-600 hover:text-orange-600 transition-all"
+              >
+                載入更多（還有 {filteredLocations.length - listLimit} 家）
+              </button>
+            </div>
+          )}
+
           {filteredLocations.length === 0 && (
             <div className="py-20 text-center bg-white rounded-3xl border border-dashed border-stone-200">
               <div className="text-4xl mb-4">🔍</div>
@@ -2120,15 +2174,13 @@ const MapPage = () => {
 };
 
 const PartnersPage = () => {
-  const [partners, setPartners] = useState<Partner[]>([]);
-
-  useEffect(() => {
-    const fetchPartners = async () => {
+  const { data: partners = [] } = useQuery({
+    queryKey: ['partners'],
+    queryFn: async () => {
       const { data } = await supabase.from('partners').select('*').order('sort_order', { ascending: true });
-      if (data) setPartners(data);
-    };
-    fetchPartners();
-  }, []);
+      return (data as Partner[]) || [];
+    },
+  });
 
   return (
     <div className="pt-24 min-h-screen bg-stone-50">
@@ -2189,20 +2241,34 @@ const getEmbedUrl = (url: string) => {
   return url;
 };
 
+const REVIEWS_PAGE_SIZE = 12;
+
 const KOLReviewsPage = () => {
   const [reviews, setReviews] = useState<KOLReview[]>([]);
   const [selectedVideo, setSelectedVideo] = useState<KOLReview | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  const fetchPage = async (offset: number) => {
+    const { data } = await supabase
+      .from('kol_reviews')
+      .select('*, brand:brands(name, logo_url)')
+      .order('created_at', { ascending: false })
+      .range(offset, offset + REVIEWS_PAGE_SIZE - 1);
+    const page = (data as KOLReview[]) || [];
+    setReviews((prev) => (offset === 0 ? page : [...prev, ...page]));
+    setHasMore(page.length === REVIEWS_PAGE_SIZE);
+  };
 
   useEffect(() => {
-    const fetchReviews = async () => {
-      const { data } = await supabase
-        .from('kol_reviews')
-        .select('*, brand:brands(name, logo_url)')
-        .order('created_at', { ascending: false });
-      if (data) setReviews(data as any);
-    };
-    fetchReviews();
+    fetchPage(0);
   }, []);
+
+  const handleLoadMore = async () => {
+    setLoadingMore(true);
+    await fetchPage(reviews.length);
+    setLoadingMore(false);
+  };
 
   return (
     <div className="pt-24 min-h-screen bg-stone-50">
@@ -2259,12 +2325,24 @@ const KOLReviewsPage = () => {
                     {review.media_type === 'video' ? <Play className="w-3 h-3" /> : <ImageIcon className="w-3 h-3" />}
                     {review.media_type === 'video' ? '影片分享' : '圖文分享'}
                   </span>
-                  <span>{new Date(review.created_at).toLocaleDateString()}</span>
+                  <span>{new Date(review.created_at).toLocaleDateString('zh-TW', { timeZone: 'Asia/Taipei' })}</span>
                 </div>
               </div>
             </motion.div>
           ))}
         </div>
+
+        {hasMore && (
+          <div className="text-center mt-12">
+            <button
+              onClick={handleLoadMore}
+              disabled={loadingMore}
+              className="px-8 py-3 bg-white border border-stone-200 rounded-xl text-stone-700 font-bold text-sm hover:border-orange-600 hover:text-orange-600 transition-all disabled:opacity-50"
+            >
+              {loadingMore ? '載入中...' : '載入更多'}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Video Modal */}
@@ -2319,19 +2397,17 @@ const KOLReviewsPage = () => {
 };
 
 const PromotionsPage = () => {
-  const [promotions, setPromotions] = useState<Promotion[]>([]);
-
-  useEffect(() => {
-    const fetchPromotions = async () => {
+  const { data: promotions = [] } = useQuery({
+    queryKey: ['promotions'],
+    queryFn: async () => {
       const { data } = await supabase
         .from('promotions')
         .select('*, brand:brands(name, logo_url)')
         .eq('is_active', true)
         .order('created_at', { ascending: false });
-      if (data) setPromotions(data as any);
-    };
-    fetchPromotions();
-  }, []);
+      return (data as Promotion[]) || [];
+    },
+  });
 
   return (
     <div className="pt-24 min-h-screen bg-stone-50">
