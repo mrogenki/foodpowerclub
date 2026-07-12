@@ -1,0 +1,10 @@
+# Supabase CLI 設定（functions deploy 用；一律用 --project-ref 明確指定專案）
+project_id = "foodpowerclub"
+
+# verify_jwt 對齊線上實況（proxy-place-photo / fix-location-photos 為公開端點）
+[functions.proxy-place-photo]
+verify_jwt = false
+[functions.fix-location-photos]
+verify_jwt = false
+[functions.admin-accounts]
+verify_jwt = true

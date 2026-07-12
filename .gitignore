@@ -9,3 +9,6 @@ coverage/
 
 # claude code local state
 .claude/
+
+.env.migration
+scripts/migrate/out/
