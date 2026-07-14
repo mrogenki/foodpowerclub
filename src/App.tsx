@@ -321,9 +321,8 @@ const Navbar = () => {
     <nav className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-md border-b border-stone-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16 items-center">
-          <Link to="/" className="flex items-center gap-2">
-            <Utensils className="w-8 h-8 text-orange-600" />
-            <span className="font-bold text-xl tracking-tight text-stone-900">食在力量俱樂部</span>
+          <Link to="/" className="flex items-center">
+            <img src="/logo-mark.png" alt="食在俱樂部 Food Power Club" className="h-9 w-auto" />
           </Link>
 
           {/* Desktop Menu */}
@@ -449,7 +448,7 @@ const Home = () => {
               transition={{ duration: 0.8 }}
             >
               <h1 className="text-5xl md:text-7xl font-bold text-white mb-6 tracking-tight">
-                {activeHeroEvent?.title || "食在力量俱樂部"}
+                {activeHeroEvent?.title || "食在俱樂部"}
               </h1>
               <p className="text-xl text-stone-200 max-w-2xl mx-auto mb-8 font-light">
                 {activeHeroEvent?.description || "探索城市中最具力量的美食，連結品牌與味蕾的盛宴。"}
@@ -693,7 +692,7 @@ const EventsPage = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-12 text-center">
           <h1 className="text-4xl font-bold text-stone-900 mb-4">活動資訊</h1>
-          <p className="text-stone-500 max-w-2xl mx-auto">探索「食在力量俱樂部」的所有精彩活動，從過去的經典回顧到現在的熱門盛宴。</p>
+          <p className="text-stone-500 max-w-2xl mx-auto">探索「食在俱樂部」的所有精彩活動，從過去的經典回顧到現在的熱門盛宴。</p>
         </div>
 
         {EVENT_CATEGORIES.map((cat) => {
@@ -914,7 +913,7 @@ const EventDetail = () => {
 
             <section className="bg-orange-600 rounded-3xl p-8 text-white shadow-xl shadow-orange-200">
               <h3 className="text-xl font-bold mb-4">立即參與</h3>
-              <p className="text-orange-100 text-sm mb-6">加入食在力量俱樂部，探索更多美味驚喜！</p>
+              <p className="text-orange-100 text-sm mb-6">加入食在俱樂部，探索更多美味驚喜！</p>
               <Link to="/promotions" className="block w-full bg-white text-orange-600 text-center py-3 rounded-xl font-bold hover:bg-stone-50 transition-colors">
                 領取優惠券
               </Link>
@@ -1249,7 +1248,7 @@ const EventSignupPage = () => {
           </div>
         )}
 
-        <p className="text-center text-xs text-stone-400 mt-10">名單每 20 秒自動更新・食在力量俱樂部</p>
+        <p className="text-center text-xs text-stone-400 mt-10">名單每 20 秒自動更新・食在俱樂部</p>
       </div>
 
       {/* Toast */}
@@ -2190,7 +2189,7 @@ const PartnersPage = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-12 text-center">
           <h1 className="text-4xl font-bold text-stone-900 mb-4">贊助夥伴</h1>
-          <p className="text-stone-500 max-w-2xl mx-auto">感謝所有支持「食在力量俱樂部」的夥伴，因為有你們，美食的力量才能傳遞得更遠。</p>
+          <p className="text-stone-500 max-w-2xl mx-auto">感謝所有支持「食在俱樂部」的夥伴，因為有你們，美食的力量才能傳遞得更遠。</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -5448,9 +5447,8 @@ export default function App() {
           
           <footer className="bg-stone-900 text-white py-12 mt-24">
             <div className="max-w-7xl mx-auto px-4 text-center">
-              <div className="flex items-center justify-center gap-2 mb-6">
-                <Utensils className="w-6 h-6 text-orange-600" />
-                <span className="font-bold text-lg">食在力量俱樂部</span>
+              <div className="flex items-center justify-center mb-6">
+                <img src="/logo-mark-white.png" alt="食在俱樂部 Food Power Club" className="h-10 w-auto" />
               </div>
               <p className="text-stone-500 text-sm mb-4">© 2026 Food Power Club. All rights reserved.</p>
               <Link to="/login" className="text-stone-800 text-[10px] hover:text-stone-700 transition-colors opacity-20 hover:opacity-100">管理登入</Link>
