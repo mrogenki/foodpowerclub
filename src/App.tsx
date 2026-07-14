@@ -767,7 +767,10 @@ const EventDetail = () => {
       if (!id) return;
       const { data: eventData } = await supabase.from('events').select('*').eq('id', id).single();
       const { data: brandsData } = await supabase.from('brands').select('*').eq('event_id', id);
-      const { data: partnersData } = await supabase.from('partners').select('*').eq('event_id', id).order('sort_order', { ascending: true });
+      const { data: partnersData } = await supabase.from('partners')
+        .select('*, partner_events!inner(event_id)')
+        .eq('partner_events.event_id', id)
+        .order('sort_order', { ascending: true });
       const { data: signupData } = await supabase.from('signup_settings')
         .select('event_id, capacity, registration_open, fee, event_time, event_location, event_address')
         .eq('event_id', id).maybeSingle();
@@ -2610,6 +2613,7 @@ const AdminDashboard = () => {
   const [locationAvgPrice, setLocationAvgPrice] = useState('');
   const [locationImageLoading, setLocationImageLoading] = useState(false);
   const [locationEventIds, setLocationEventIds] = useState<string[]>([]);
+  const [partnerEventIds, setPartnerEventIds] = useState<string[]>([]);
 
   const [imageUrl, setImageUrl] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
@@ -2659,6 +2663,8 @@ const AdminDashboard = () => {
     } else if (editingPartner) {
       setEditorContent(editingPartner.content || '');
       setLogoUrl(editingPartner.logo_url || '');
+      supabase.from('partner_events').select('event_id').eq('partner_id', editingPartner.id)
+        .then(({ data }) => { setPartnerEventIds(data?.map(r => r.event_id) || []); });
     } else if (editingKOL) {
       setEditorContent(editingKOL.content || '');
       setImageUrl(editingKOL.media_url || '');
@@ -2689,6 +2695,7 @@ const AdminDashboard = () => {
       setImageUrl('');
       setAvatarUrl('');
       setLogoUrl('');
+      setPartnerEventIds([]);
       setLocationName('');
       setLocationAddress('');
       setLocationLat('');
@@ -2825,10 +2832,15 @@ const AdminDashboard = () => {
 
   const handleSavePartner = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (partnerEventIds.length === 0) {
+      alert('請至少選擇一個所屬活動');
+      return;
+    }
     const formData = new FormData(e.currentTarget);
     const partnerData = {
       name: formData.get('name') as string,
-      event_id: formData.get('event_id') as string,
+      // event_id 保留為「主要活動」（所選第一個），向下相容；完整關聯存於 partner_events
+      event_id: partnerEventIds[0],
       type: formData.get('type') as string,
       sort_order: parseInt(formData.get('sort_order') as string) || 0,
       logo_url: logoUrl,
@@ -2836,23 +2848,38 @@ const AdminDashboard = () => {
     };
 
     let error;
+    let savedId = editingPartner?.id;
     if (editingPartner) {
       const result = await supabase.from('partners').update(partnerData).eq('id', editingPartner.id);
       error = result.error;
     } else {
-      const result = await supabase.from('partners').insert([partnerData]);
+      const result = await supabase.from('partners').insert([partnerData]).select('id').single();
       error = result.error;
+      savedId = result.data?.id;
     }
-    
+
     if (error) {
       alert(`儲存失敗: ${error.message}`);
       return;
     }
-    
+
+    // 同步 partner_events 多對多關聯（先清空再寫入）
+    if (savedId) {
+      await supabase.from('partner_events').delete().eq('partner_id', savedId);
+      const { error: peError } = await supabase.from('partner_events').insert(
+        partnerEventIds.map(eid => ({ partner_id: savedId, event_id: eid }))
+      );
+      if (peError) {
+        alert(`活動關聯儲存失敗: ${peError.message}`);
+        return;
+      }
+    }
+
     setShowPartnerModal(false);
     setEditingPartner(null);
     setEditorContent('');
     setLogoUrl('');
+    setPartnerEventIds([]);
     fetchData();
   };
 
@@ -4257,13 +4284,31 @@ const AdminDashboard = () => {
               <form onSubmit={handleSavePartner} className="p-8 space-y-6 max-h-[70vh] overflow-y-auto">
                 <div className="grid grid-cols-2 gap-6">
                   <div className="col-span-2">
-                    <label className="block text-sm font-medium text-stone-700 mb-2">所屬活動</label>
-                    <select name="event_id" defaultValue={editingPartner?.event_id} className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" required>
-                      <option value="">請選擇活動</option>
+                    <label className="block text-sm font-medium text-stone-700 mb-3">
+                      所屬活動 <span className="text-stone-400 font-normal text-xs">（可複選，夥伴會顯示在所有勾選的活動）</span>
+                    </label>
+                    <div className="space-y-2">
                       {allEvents.map(event => (
-                        <option key={event.id} value={event.id}>{event.title}</option>
+                        <label key={event.id} className="flex items-center gap-3 p-3 rounded-xl border border-stone-100 hover:bg-orange-50 cursor-pointer transition-colors">
+                          <input
+                            type="checkbox"
+                            checked={partnerEventIds.includes(event.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setPartnerEventIds([...partnerEventIds, event.id]);
+                              } else {
+                                setPartnerEventIds(partnerEventIds.filter(id => id !== event.id));
+                              }
+                            }}
+                            className="w-4 h-4 accent-orange-600"
+                          />
+                          <span className="text-sm font-medium text-stone-700">{event.title}</span>
+                        </label>
                       ))}
-                    </select>
+                      {allEvents.length === 0 && (
+                        <p className="text-sm text-stone-400">尚無活動可選擇</p>
+                      )}
+                    </div>
                   </div>
                   <div className="col-span-2">
                     <label className="block text-sm font-medium text-stone-700 mb-2">夥伴名稱</label>

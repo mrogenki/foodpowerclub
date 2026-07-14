@@ -32,12 +32,21 @@ export interface Brand {
 
 export interface Partner {
   id: string;
-  event_id: string;
+  /** 主要活動（向下相容，等於所選活動的第一個）；夥伴可同時參與多個活動見 partner_events */
+  event_id?: string;
   name: string;
   type: 'KOL' | 'Restaurant' | 'Sponsor';
   content: string;
   logo_url: string;
   sort_order: number;
+  created_at: string;
+}
+
+/** 贊助夥伴 ↔ 活動 多對多關聯 */
+export interface PartnerEvent {
+  id: string;
+  partner_id: string;
+  event_id: string;
   created_at: string;
 }
 
