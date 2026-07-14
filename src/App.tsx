@@ -3102,6 +3102,14 @@ const AdminDashboard = () => {
     await fetchSignupAdminData(signupAdminEvent.id);
   };
 
+  const handleRemoveSignupEntry = async (entry: SignupEntry) => {
+    if (!signupAdminEvent) return;
+    if (!window.confirm(`確定要移除「${entry.name}」的報名嗎？\n若移除的是正取，最早的候補會自動遞補。`)) return;
+    const { error } = await supabase.rpc('signup_admin_remove', { p_id: entry.id });
+    if (error) { alert(`移除失敗: ${error.message}`); return; }
+    await fetchSignupAdminData(signupAdminEvent.id);
+  };
+
   const formatSignupTime = (ts: string) =>
     new Date(ts).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' });
 
@@ -4802,6 +4810,7 @@ const AdminDashboard = () => {
                             <th className="py-3 px-4 font-medium">聯絡方式</th>
                             <th className="py-3 px-4 font-medium">狀態</th>
                             <th className="py-3 px-4 font-medium">報名時間</th>
+                            <th className="py-3 px-4 font-medium text-right">操作</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-stone-50">
@@ -4820,10 +4829,19 @@ const AdminDashboard = () => {
                                 </span>
                               </td>
                               <td className="py-3 px-4 text-stone-400 text-xs whitespace-nowrap">{formatSignupTime(entry.created_at)}</td>
+                              <td className="py-3 px-4 text-right">
+                                <button
+                                  onClick={() => handleRemoveSignupEntry(entry)}
+                                  className="p-1.5 text-stone-300 hover:text-red-600 transition-colors"
+                                  title="移除此筆報名（正取移除後自動遞補）"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </td>
                             </tr>
                           ))}
                           {signupAdminEntries.length === 0 && (
-                            <tr><td colSpan={6} className="py-10 text-center text-stone-400">目前尚無報名</td></tr>
+                            <tr><td colSpan={7} className="py-10 text-center text-stone-400">目前尚無報名</td></tr>
                           )}
                         </tbody>
                       </table>
