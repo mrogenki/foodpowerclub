@@ -77,7 +77,9 @@ npm run lint      # tsc --noEmit 型別檢查
 
 ## Supabase 資料庫
 
-**Project ID**：spueuuoihhrejuehgfsl（region: ap-southeast-1，新加坡）
+**Project ID**：ultsxvsujfjzxpxgzqwh（region: ap-northeast-1，東京）
+- 2026-07-12 自新加坡 `spueuuoihhrejuehgfsl` 遷移完成（見 docs/migrate-db-to-tokyo.md）；舊專案保留至 2026-07-26 後停用
+- ⚠️ 對 DB 做 migration / 部署 Edge Function 時，一律以東京專案為準
 
 | 資料表 | 說明 |
 |---|---|
@@ -89,6 +91,14 @@ npm run lint      # tsc --noEmit 型別檢查
 | locations | 美食地圖店家（id, name, category, city, district, address, lat, lng, phone, image_url, description, discount_info, rating, booking_url, order_url, business_hours, avg_price, **brand_id**） |
 | location_events | 店家↔活動關聯（id, location_id, event_id）— 多對多 |
 | admin_users | 管理員帳號（user_id→auth.users, email, role）— role：'owner' 帳號＋內容管理 / 'editor' 內容管理。內容表寫入 RLS 皆檢查 `is_admin()`；帳號增刪改走 admin-accounts Edge Function（service role），前端僅可讀 |
+| signup_settings | 接龍報名設定（event_id PK→events, capacity, registration_open, fee, event_time, event_location, event_address）— 有此列＝該活動開報名 |
+| signup_entries | 接龍報名資料（id, event_id, name, industry, **contact 不公開**, status: confirmed/waitlist, cancel_token, created_at）— **欄位級權限**：anon 只能 select 非敏感欄位（select * 會 permission denied），寫入一律走 RPC |
+
+**接龍報名 RPC**（皆 security definer、pg_advisory_xact_lock 防併發）：
+- `signup_register(event_id, name, industry, contact)`：報名，額滿自動轉候補；回傳 `{id, cancel_token, status}`（前端存 localStorage `foodpower_signup_<eventId>` 供自助取消）
+- `signup_cancel(id, token)`：憑 token 取消，自動遞補最早候補
+- `signup_admin_update(event_id, capacity, open)` / `signup_admin_remove(id)`：僅 authenticated 可呼叫（函式內再檢查 auth.uid()）；調高名額/移除正取皆自動遞補
+- 公開頁 `/event/:id/signup`；後台在活動管理列的「報名」按鈕
 
 **關聯架構**：
 ```
@@ -124,7 +134,7 @@ fetch(`${SUPABASE_URL}/functions/v1/proxy-place-photo`, {
 
 | Tab | 功能 |
 |---|---|
-| 活動管理 | 新增/編輯/刪除活動；**📍 店家按鈕** → 管理活動參與店家（location_events） |
+| 活動管理 | 新增/編輯/刪除活動；**📍 店家按鈕** → 管理活動參與店家（location_events）；**📋 報名按鈕** → 接龍報名管理（開關報名/名額/完整名單含聯絡方式/CSV/複製 LINE 接龍文字/移除報名自動遞補） |
 | 品牌管理 | 管理品牌；**📍 分店按鈕** → 管理品牌分店（locations.brand_id） |
 | 地圖管理 | 新增/編輯店家；支援 Google Places Autocomplete 自動帶入；**批次匯入**（textSearch 模糊搜尋） |
 | 開箱管理 | 支援圖片/影片（YouTube、TikTok、Reels 自動轉 embed URL） |
