@@ -385,7 +385,7 @@ const Home = () => {
         supabase.from('events').select('*').order('start_date', { ascending: true }),
         supabase.from('promotions').select('*, brand:brands(name, logo_url)').eq('is_active', true).limit(3).order('created_at', { ascending: false }),
         supabase.from('kol_reviews').select('*').limit(3).order('created_at', { ascending: false }),
-        supabase.from('partners').select('*').order('sort_order', { ascending: true }).limit(6),
+        supabase.from('partners').select('*').order('sort_order', { ascending: true }),
       ]);
       const eventsData = (eventsRes.data as Event[]) || [];
       return {
@@ -665,12 +665,6 @@ const Home = () => {
                 <span className="text-[10px] uppercase tracking-widest font-bold text-stone-600 group-hover:text-orange-600 transition-colors">{partner.name}</span>
               </Link>
             ))}
-          </div>
-          
-          <div className="mt-16 text-center">
-            <Link to="/partners" className="text-stone-400 hover:text-orange-600 transition-colors text-sm font-medium">
-              查看所有合作夥伴
-            </Link>
           </div>
         </div>
       </section>
