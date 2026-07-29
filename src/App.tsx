@@ -2715,7 +2715,7 @@ const AdminDashboard = () => {
         if (error) throw error;
         if (data) setEvents(data);
       } else if (activeTab === 'brands') {
-        const { data, error } = await supabase.from('brands').select('*');
+        const { data, error } = await supabase.from('brands').select('*').order('category', { ascending: true }).order('name', { ascending: true });
         if (error) throw error;
         if (data) setBrands(data as any);
       } else if (activeTab === 'partners') {
@@ -3698,54 +3698,66 @@ const AdminDashboard = () => {
                   </button>
                 </div>
 
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left">
-                    <thead>
-                      <tr className="border-b border-stone-100 text-stone-400 text-sm">
-                        <th className="pb-4 font-medium">品牌名稱</th>
-                        <th className="pb-4 font-medium text-right">操作</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-stone-50">
-                      {brands.map(brand => (
-                        <tr key={brand.id} className="group">
-                          <td className="py-4 font-medium flex items-center gap-3">
-                            <SafeImage src={brand.logo_url} className="w-8 h-8 rounded-full object-cover bg-stone-50" alt="" />
-                            {brand.name}
-                          </td>
-                          <td className="py-4 text-right">
-                            <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <button
-                                onClick={() => handleOpenBrandLocations(brand)}
-                                className="px-2 py-1 text-xs font-bold text-orange-600 hover:bg-orange-50 rounded-lg flex items-center gap-1 transition-colors"
-                                title="管理品牌分店"
-                              >
-                                <MapPin className="w-3 h-3" /> 分店
-                              </button>
-                              <button 
-                                onClick={() => { setEditingBrand(brand); setShowBrandModal(true); }}
-                                className="p-2 text-stone-400 hover:text-orange-600"
-                              >
-                                <Edit className="w-4 h-4" />
-                              </button>
-                              <button 
-                                onClick={() => handleDeleteBrand(brand.id)}
-                                className="p-2 text-stone-400 hover:text-red-600"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
+                {brands.length === 0 ? (
+                  <div className="py-12 text-center text-stone-400">目前尚無品牌資料</div>
+                ) : (
+                  <div className="space-y-8">
+                    {Object.entries(
+                      brands.reduce((acc, b) => {
+                        const key = (b.category || '').trim() || '未分類';
+                        (acc[key] = acc[key] || []).push(b);
+                        return acc;
+                      }, {} as Record<string, Brand[]>)
+                    )
+                      .sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0], 'zh-Hant'))
+                      .map(([category, list]) => (
+                        <div key={category}>
+                          <div className="flex items-center gap-2 mb-2 px-1">
+                            <span className="inline-block w-1.5 h-1.5 rounded-full bg-orange-600" />
+                            <h3 className="text-sm font-bold text-stone-800">{category}</h3>
+                            <span className="text-xs text-stone-400">{list.length} 個品牌</span>
+                          </div>
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-left">
+                              <tbody className="divide-y divide-stone-50">
+                                {list.map(brand => (
+                                  <tr key={brand.id} className="group">
+                                    <td className="py-4 font-medium flex items-center gap-3">
+                                      <SafeImage src={brand.logo_url} className="w-8 h-8 rounded-full object-cover bg-stone-50" alt="" />
+                                      {brand.name}
+                                    </td>
+                                    <td className="py-4 text-right">
+                                      <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <button
+                                          onClick={() => handleOpenBrandLocations(brand)}
+                                          className="px-2 py-1 text-xs font-bold text-orange-600 hover:bg-orange-50 rounded-lg flex items-center gap-1 transition-colors"
+                                          title="管理品牌分店"
+                                        >
+                                          <MapPin className="w-3 h-3" /> 分店
+                                        </button>
+                                        <button
+                                          onClick={() => { setEditingBrand(brand); setShowBrandModal(true); }}
+                                          className="p-2 text-stone-400 hover:text-orange-600"
+                                        >
+                                          <Edit className="w-4 h-4" />
+                                        </button>
+                                        <button
+                                          onClick={() => handleDeleteBrand(brand.id)}
+                                          className="p-2 text-stone-400 hover:text-red-600"
+                                        >
+                                          <Trash2 className="w-4 h-4" />
+                                        </button>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
                       ))}
-                      {brands.length === 0 && (
-                        <tr>
-                          <td colSpan={2} className="py-12 text-center text-stone-400">目前尚無品牌資料</td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+                  </div>
+                )}
               </>
             )}
 
@@ -4212,8 +4224,23 @@ const AdminDashboard = () => {
                     <input name="name" defaultValue={editingBrand?.name} className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" required />
                   </div>
                   <div className="col-span-2">
-                    <label className="block text-sm font-medium text-stone-700 mb-2">品牌類別 (例如: 燒烤、火鍋)</label>
-                    <input name="category" defaultValue={editingBrand?.category} className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" required />
+                    <label className="block text-sm font-medium text-stone-700 mb-2">品牌類別 (可選擇現有類別或輸入新類別)</label>
+                    <input
+                      name="category"
+                      list="brand-category-options"
+                      defaultValue={editingBrand?.category}
+                      placeholder="例如: 燒烤、火鍋"
+                      autoComplete="off"
+                      className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600"
+                      required
+                    />
+                    <datalist id="brand-category-options">
+                      {Array.from(new Set(brands.map(b => (b.category || '').trim()).filter(Boolean)))
+                        .sort((a, b) => a.localeCompare(b, 'zh-Hant'))
+                        .map(c => (
+                          <option key={c} value={c} />
+                        ))}
+                    </datalist>
                   </div>
                   <div className="col-span-2">
                     <label className="block text-sm font-medium text-stone-700 mb-2">簡短描述</label>
