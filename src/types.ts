@@ -20,7 +20,8 @@ export interface Event {
 
 export interface Brand {
   id: string;
-  event_id: string;
+  /** 舊的單一活動欄位（保留向下相容）；活動關聯改由 brand_events 多對多維護 */
+  event_id?: string;
   name: string;
   description: string;
   logo_url: string;
@@ -46,6 +47,14 @@ export interface Partner {
 export interface PartnerEvent {
   id: string;
   partner_id: string;
+  event_id: string;
+  created_at: string;
+}
+
+/** 品牌 ↔ 活動 多對多關聯（由活動編輯頁勾選要顯示的品牌） */
+export interface BrandEvent {
+  id: string;
+  brand_id: string;
   event_id: string;
   created_at: string;
 }

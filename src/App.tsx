@@ -759,7 +759,9 @@ const EventDetail = () => {
     const fetchData = async () => {
       if (!id) return;
       const { data: eventData } = await supabase.from('events').select('*').eq('id', id).single();
-      const { data: brandsData } = await supabase.from('brands').select('*').eq('event_id', id);
+      const { data: brandsData } = await supabase.from('brands')
+        .select('*, brand_events!inner(event_id)')
+        .eq('brand_events.event_id', id);
       const { data: partnersData } = await supabase.from('partners')
         .select('*, partner_events!inner(event_id)')
         .eq('partner_events.event_id', id)
@@ -2606,7 +2608,10 @@ const AdminDashboard = () => {
   const [locationAvgPrice, setLocationAvgPrice] = useState('');
   const [locationImageLoading, setLocationImageLoading] = useState(false);
   const [locationEventIds, setLocationEventIds] = useState<string[]>([]);
-  const [partnerEventIds, setPartnerEventIds] = useState<string[]>([]);
+  // 活動 modal 內勾選要顯示的品牌與贊助夥伴（多對多）
+  const [allPartners, setAllPartners] = useState<Partner[]>([]);
+  const [eventBrandIds, setEventBrandIds] = useState<string[]>([]);
+  const [eventPartnerIds, setEventPartnerIds] = useState<string[]>([]);
 
   const [imageUrl, setImageUrl] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
@@ -2634,6 +2639,7 @@ const AdminDashboard = () => {
     fetchData();
     fetchAllEvents();
     fetchAllBrands();
+    fetchAllPartners();
   }, [activeTab]);
 
   const fetchAllEvents = async () => {
@@ -2642,22 +2648,29 @@ const AdminDashboard = () => {
   };
 
   const fetchAllBrands = async () => {
-    const { data } = await supabase.from('brands').select('id, name').order('name', { ascending: true });
+    const { data } = await supabase.from('brands').select('id, name, category').order('category', { ascending: true }).order('name', { ascending: true });
     if (data) setAllBrands(data as any);
+  };
+
+  const fetchAllPartners = async () => {
+    const { data } = await supabase.from('partners').select('id, name').order('sort_order', { ascending: true }).order('name', { ascending: true });
+    if (data) setAllPartners(data as any);
   };
 
   useEffect(() => {
     if (editingEvent) {
       setEditorContent(editingEvent.content || '');
       setImageUrl(editingEvent.image_url || '');
+      supabase.from('brand_events').select('brand_id').eq('event_id', editingEvent.id)
+        .then(({ data }) => { setEventBrandIds(data?.map(r => r.brand_id) || []); });
+      supabase.from('partner_events').select('partner_id').eq('event_id', editingEvent.id)
+        .then(({ data }) => { setEventPartnerIds(data?.map(r => r.partner_id) || []); });
     } else if (editingBrand) {
       setEditorContent((editingBrand as any).content || '');
       setLogoUrl(editingBrand.logo_url || '');
     } else if (editingPartner) {
       setEditorContent(editingPartner.content || '');
       setLogoUrl(editingPartner.logo_url || '');
-      supabase.from('partner_events').select('event_id').eq('partner_id', editingPartner.id)
-        .then(({ data }) => { setPartnerEventIds(data?.map(r => r.event_id) || []); });
     } else if (editingKOL) {
       setEditorContent(editingKOL.content || '');
       setImageUrl(editingKOL.media_url || '');
@@ -2688,7 +2701,8 @@ const AdminDashboard = () => {
       setImageUrl('');
       setAvatarUrl('');
       setLogoUrl('');
-      setPartnerEventIds([]);
+      setEventBrandIds([]);
+      setEventPartnerIds([]);
       setLocationName('');
       setLocationAddress('');
       setLocationLat('');
@@ -2769,23 +2783,45 @@ const AdminDashboard = () => {
     };
 
     let error;
+    let savedId = editingEvent?.id;
     if (editingEvent) {
       const result = await supabase.from('events').update(eventData).eq('id', editingEvent.id);
       error = result.error;
     } else {
-      const result = await supabase.from('events').insert([eventData]);
+      const result = await supabase.from('events').insert([eventData]).select('id').single();
       error = result.error;
+      savedId = result.data?.id;
     }
-    
+
     if (error) {
       alert(`儲存失敗: ${error.message}`);
       return;
     }
-    
+
+    // 同步此活動要顯示的品牌與贊助夥伴（先清空再寫入）
+    if (savedId) {
+      await supabase.from('brand_events').delete().eq('event_id', savedId);
+      if (eventBrandIds.length > 0) {
+        const { error: beError } = await supabase.from('brand_events').insert(
+          eventBrandIds.map(bid => ({ brand_id: bid, event_id: savedId }))
+        );
+        if (beError) { alert(`品牌關聯儲存失敗: ${beError.message}`); return; }
+      }
+      await supabase.from('partner_events').delete().eq('event_id', savedId);
+      if (eventPartnerIds.length > 0) {
+        const { error: peError } = await supabase.from('partner_events').insert(
+          eventPartnerIds.map(pid => ({ partner_id: pid, event_id: savedId }))
+        );
+        if (peError) { alert(`贊助夥伴關聯儲存失敗: ${peError.message}`); return; }
+      }
+    }
+
     setShowEventModal(false);
     setEditingEvent(null);
     setEditorContent('');
     setImageUrl('');
+    setEventBrandIds([]);
+    setEventPartnerIds([]);
     fetchData();
   };
 
@@ -2794,7 +2830,6 @@ const AdminDashboard = () => {
     const formData = new FormData(e.currentTarget);
     const brandData = {
       name: formData.get('name') as string,
-      event_id: formData.get('event_id') as string,
       category: formData.get('category') as string,
       description: formData.get('description') as string,
       promotion_info: formData.get('promotion_info') as string,
@@ -2825,15 +2860,9 @@ const AdminDashboard = () => {
 
   const handleSavePartner = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (partnerEventIds.length === 0) {
-      alert('請至少選擇一個所屬活動');
-      return;
-    }
     const formData = new FormData(e.currentTarget);
     const partnerData = {
       name: formData.get('name') as string,
-      // event_id 保留為「主要活動」（所選第一個），向下相容；完整關聯存於 partner_events
-      event_id: partnerEventIds[0],
       type: formData.get('type') as string,
       sort_order: parseInt(formData.get('sort_order') as string) || 0,
       logo_url: logoUrl,
@@ -2841,14 +2870,12 @@ const AdminDashboard = () => {
     };
 
     let error;
-    let savedId = editingPartner?.id;
     if (editingPartner) {
       const result = await supabase.from('partners').update(partnerData).eq('id', editingPartner.id);
       error = result.error;
     } else {
-      const result = await supabase.from('partners').insert([partnerData]).select('id').single();
+      const result = await supabase.from('partners').insert([partnerData]);
       error = result.error;
-      savedId = result.data?.id;
     }
 
     if (error) {
@@ -2856,23 +2883,10 @@ const AdminDashboard = () => {
       return;
     }
 
-    // 同步 partner_events 多對多關聯（先清空再寫入）
-    if (savedId) {
-      await supabase.from('partner_events').delete().eq('partner_id', savedId);
-      const { error: peError } = await supabase.from('partner_events').insert(
-        partnerEventIds.map(eid => ({ partner_id: savedId, event_id: eid }))
-      );
-      if (peError) {
-        alert(`活動關聯儲存失敗: ${peError.message}`);
-        return;
-      }
-    }
-
     setShowPartnerModal(false);
     setEditingPartner(null);
     setEditorContent('');
     setLogoUrl('');
-    setPartnerEventIds([]);
     fetchData();
   };
 
@@ -4174,6 +4188,73 @@ const AdminDashboard = () => {
                     <label className="block text-sm font-medium text-stone-700 mb-2">影片網址 (YouTube 或 MP4)</label>
                     <input name="video_url" defaultValue={editingEvent?.video_url} className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" placeholder="https://www.youtube.com/watch?v=..." />
                   </div>
+
+                  <div className="col-span-2">
+                    <label className="block text-sm font-medium text-stone-700 mb-3">
+                      參與餐飲品牌 <span className="text-stone-400 font-normal text-xs">（勾選的品牌會顯示在此活動頁）已選 {eventBrandIds.length}</span>
+                    </label>
+                    {allBrands.length === 0 ? (
+                      <p className="text-sm text-stone-400">尚無品牌可選擇，請先到品牌管理新增</p>
+                    ) : (
+                      <div className="max-h-56 overflow-y-auto space-y-3 border border-stone-100 rounded-xl p-3">
+                        {Object.entries(
+                          allBrands.reduce((acc, b) => {
+                            const key = ((b as any).category || '').trim() || '未分類';
+                            (acc[key] = acc[key] || []).push(b);
+                            return acc;
+                          }, {} as Record<string, Brand[]>)
+                        )
+                          .sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0], 'zh-Hant'))
+                          .map(([category, list]) => (
+                            <div key={category}>
+                              <p className="text-xs font-bold text-stone-500 mb-1 px-1">{category}</p>
+                              <div className="grid grid-cols-2 gap-1.5">
+                                {list.map(brand => (
+                                  <label key={brand.id} className="flex items-center gap-2 p-2 rounded-lg hover:bg-orange-50 cursor-pointer transition-colors">
+                                    <input
+                                      type="checkbox"
+                                      checked={eventBrandIds.includes(brand.id)}
+                                      onChange={(e) => {
+                                        if (e.target.checked) setEventBrandIds([...eventBrandIds, brand.id]);
+                                        else setEventBrandIds(eventBrandIds.filter(id => id !== brand.id));
+                                      }}
+                                      className="w-4 h-4 accent-orange-600 shrink-0"
+                                    />
+                                    <span className="text-sm text-stone-700 truncate">{brand.name}</span>
+                                  </label>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="col-span-2">
+                    <label className="block text-sm font-medium text-stone-700 mb-3">
+                      贊助夥伴 <span className="text-stone-400 font-normal text-xs">（勾選的贊助夥伴會顯示在此活動頁）已選 {eventPartnerIds.length}</span>
+                    </label>
+                    {allPartners.length === 0 ? (
+                      <p className="text-sm text-stone-400">尚無贊助夥伴可選擇，請先到贊助管理新增</p>
+                    ) : (
+                      <div className="max-h-48 overflow-y-auto grid grid-cols-2 gap-1.5 border border-stone-100 rounded-xl p-3">
+                        {allPartners.map(partner => (
+                          <label key={partner.id} className="flex items-center gap-2 p-2 rounded-lg hover:bg-orange-50 cursor-pointer transition-colors">
+                            <input
+                              type="checkbox"
+                              checked={eventPartnerIds.includes(partner.id)}
+                              onChange={(e) => {
+                                if (e.target.checked) setEventPartnerIds([...eventPartnerIds, partner.id]);
+                                else setEventPartnerIds(eventPartnerIds.filter(id => id !== partner.id));
+                              }}
+                              className="w-4 h-4 accent-orange-600 shrink-0"
+                            />
+                            <span className="text-sm text-stone-700 truncate">{partner.name}</span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
                 <div className="pt-6 flex gap-4">
                   <button type="button" onClick={() => { setShowEventModal(false); setEditingEvent(null); }} className="flex-1 px-6 py-3 rounded-xl border border-stone-200 font-bold hover:bg-stone-50 transition-colors">取消</button>
@@ -4210,15 +4291,6 @@ const AdminDashboard = () => {
               </div>
               <form onSubmit={handleSaveBrand} className="p-8 space-y-6 max-h-[70vh] overflow-y-auto">
                 <div className="grid grid-cols-2 gap-6">
-                  <div className="col-span-2">
-                    <label className="block text-sm font-medium text-stone-700 mb-2">所屬活動</label>
-                    <select name="event_id" defaultValue={editingBrand?.event_id} className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" required>
-                      <option value="">請選擇活動</option>
-                      {allEvents.map(event => (
-                        <option key={event.id} value={event.id}>{event.title}</option>
-                      ))}
-                    </select>
-                  </div>
                   <div className="col-span-2">
                     <label className="block text-sm font-medium text-stone-700 mb-2">品牌名稱</label>
                     <input name="name" defaultValue={editingBrand?.name} className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" required />
@@ -4303,33 +4375,6 @@ const AdminDashboard = () => {
               </div>
               <form onSubmit={handleSavePartner} className="p-8 space-y-6 max-h-[70vh] overflow-y-auto">
                 <div className="grid grid-cols-2 gap-6">
-                  <div className="col-span-2">
-                    <label className="block text-sm font-medium text-stone-700 mb-3">
-                      所屬活動 <span className="text-stone-400 font-normal text-xs">（可複選，夥伴會顯示在所有勾選的活動）</span>
-                    </label>
-                    <div className="space-y-2">
-                      {allEvents.map(event => (
-                        <label key={event.id} className="flex items-center gap-3 p-3 rounded-xl border border-stone-100 hover:bg-orange-50 cursor-pointer transition-colors">
-                          <input
-                            type="checkbox"
-                            checked={partnerEventIds.includes(event.id)}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setPartnerEventIds([...partnerEventIds, event.id]);
-                              } else {
-                                setPartnerEventIds(partnerEventIds.filter(id => id !== event.id));
-                              }
-                            }}
-                            className="w-4 h-4 accent-orange-600"
-                          />
-                          <span className="text-sm font-medium text-stone-700">{event.title}</span>
-                        </label>
-                      ))}
-                      {allEvents.length === 0 && (
-                        <p className="text-sm text-stone-400">尚無活動可選擇</p>
-                      )}
-                    </div>
-                  </div>
                   <div className="col-span-2">
                     <label className="block text-sm font-medium text-stone-700 mb-2">夥伴名稱</label>
                     <input name="name" defaultValue={editingPartner?.name} className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" required />
