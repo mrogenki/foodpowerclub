@@ -2519,6 +2519,7 @@ const AdminDashboard = () => {
   const [allEvents, setAllEvents] = useState<Event[]>([]);
   const [allBrands, setAllBrands] = useState<Brand[]>([]);
   const [brands, setBrands] = useState<Brand[]>([]);
+  const [brandCategoryTab, setBrandCategoryTab] = useState('');
   const [partners, setPartners] = useState<Partner[]>([]);
   const [kolReviews, setKolReviews] = useState<KOLReview[]>([]);
   const [promotions, setPromotions] = useState<Promotion[]>([]);
@@ -3714,64 +3715,74 @@ const AdminDashboard = () => {
 
                 {brands.length === 0 ? (
                   <div className="py-12 text-center text-stone-400">目前尚無品牌資料</div>
-                ) : (
-                  <div className="space-y-8">
-                    {Object.entries(
-                      brands.reduce((acc, b) => {
-                        const key = (b.category || '').trim() || '未分類';
-                        (acc[key] = acc[key] || []).push(b);
-                        return acc;
-                      }, {} as Record<string, Brand[]>)
-                    )
-                      .sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0], 'zh-Hant'))
-                      .map(([category, list]) => (
-                        <div key={category}>
-                          <div className="flex items-center gap-2 mb-2 px-1">
-                            <span className="inline-block w-1.5 h-1.5 rounded-full bg-orange-600" />
-                            <h3 className="text-sm font-bold text-stone-800">{category}</h3>
-                            <span className="text-xs text-stone-400">{list.length} 個品牌</span>
-                          </div>
-                          <div className="overflow-x-auto">
-                            <table className="w-full text-left">
-                              <tbody className="divide-y divide-stone-50">
-                                {list.map(brand => (
-                                  <tr key={brand.id} className="group">
-                                    <td className="py-4 font-medium flex items-center gap-3">
-                                      <SafeImage src={brand.logo_url} className="w-8 h-8 rounded-full object-cover bg-stone-50" alt="" />
-                                      {brand.name}
-                                    </td>
-                                    <td className="py-4 text-right">
-                                      <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <button
-                                          onClick={() => handleOpenBrandLocations(brand)}
-                                          className="px-2 py-1 text-xs font-bold text-orange-600 hover:bg-orange-50 rounded-lg flex items-center gap-1 transition-colors"
-                                          title="管理品牌分店"
-                                        >
-                                          <MapPin className="w-3 h-3" /> 分店
-                                        </button>
-                                        <button
-                                          onClick={() => { setEditingBrand(brand); setShowBrandModal(true); }}
-                                          className="p-2 text-stone-400 hover:text-orange-600"
-                                        >
-                                          <Edit className="w-4 h-4" />
-                                        </button>
-                                        <button
-                                          onClick={() => handleDeleteBrand(brand.id)}
-                                          className="p-2 text-stone-400 hover:text-red-600"
-                                        >
-                                          <Trash2 className="w-4 h-4" />
-                                        </button>
-                                      </div>
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
-                      ))}
-                  </div>
-                )}
+                ) : (() => {
+                  const groups = Object.entries(
+                    brands.reduce((acc, b) => {
+                      const key = (b.category || '').trim() || '未分類';
+                      (acc[key] = acc[key] || []).push(b);
+                      return acc;
+                    }, {} as Record<string, Brand[]>)
+                  ).sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0], 'zh-Hant'));
+                  const cats = groups.map(g => g[0]);
+                  const activeCat = cats.includes(brandCategoryTab) ? brandCategoryTab : cats[0];
+                  const list = (groups.find(g => g[0] === activeCat) || groups[0])[1];
+                  return (
+                    <div>
+                      <div className="flex flex-wrap gap-2 mb-4 border-b border-stone-100 pb-4">
+                        {groups.map(([cat, l]) => (
+                          <button
+                            key={cat}
+                            onClick={() => setBrandCategoryTab(cat)}
+                            className={cn(
+                              "px-4 py-1.5 rounded-full text-sm font-medium transition-colors flex items-center gap-1.5",
+                              activeCat === cat ? "bg-orange-600 text-white" : "text-stone-600 hover:bg-stone-100"
+                            )}
+                          >
+                            {cat}
+                            <span className={cn("text-xs", activeCat === cat ? "text-orange-100" : "text-stone-400")}>{l.length}</span>
+                          </button>
+                        ))}
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left">
+                          <tbody className="divide-y divide-stone-50">
+                            {list.map(brand => (
+                              <tr key={brand.id} className="group">
+                                <td className="py-4 font-medium flex items-center gap-3">
+                                  <SafeImage src={brand.logo_url} className="w-8 h-8 rounded-full object-cover bg-stone-50" alt="" />
+                                  {brand.name}
+                                </td>
+                                <td className="py-4 text-right">
+                                  <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button
+                                      onClick={() => handleOpenBrandLocations(brand)}
+                                      className="px-2 py-1 text-xs font-bold text-orange-600 hover:bg-orange-50 rounded-lg flex items-center gap-1 transition-colors"
+                                      title="管理品牌分店"
+                                    >
+                                      <MapPin className="w-3 h-3" /> 分店
+                                    </button>
+                                    <button
+                                      onClick={() => { setEditingBrand(brand); setShowBrandModal(true); }}
+                                      className="p-2 text-stone-400 hover:text-orange-600"
+                                    >
+                                      <Edit className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteBrand(brand.id)}
+                                      className="p-2 text-stone-400 hover:text-red-600"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  );
+                })()}
               </>
             )}
 
