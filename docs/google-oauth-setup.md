@@ -28,11 +28,12 @@
    - App name：`食在俱樂部`
    - User support email：聯絡信箱
    - App logo（選填）
-   - **Authorized domains（授權網域）**：
+   - **Authorized domains（已授權網域）**：加入自己的網域
      ```
      foodpowerclub.com
-     supabase.co
      ```
+     > `supabase.co` 能加就加（更保險）；若被要求驗證網域擁有權而擋住就**直接略過**，登入仍可正常運作（實際靠 OAuth 用戶端的 redirect URI，不靠這裡）。
+     > 位置：Google Auth Platform → 左選單「品牌 / Branding」→「已授權網域」→ 新增網域。
    - Developer contact information：信箱
 4. Scopes：**不用加敏感權限**，預設 `email`、`profile`、`openid` 即可
 5. 儲存
