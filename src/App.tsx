@@ -33,7 +33,13 @@ import {
   ShoppingBag,
   ClipboardList,
   Copy,
-  Download
+  Download,
+  User,
+  Sparkles,
+  Building2,
+  Mail,
+  CheckCircle2,
+  ShieldCheck
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import ReactMarkdown from 'react-markdown';
@@ -58,7 +64,7 @@ const queryClient = new QueryClient({
   },
 });
 import { cn } from './lib/utils';
-import type { Event, EventCategory, Brand, Partner, Location, Review, KOLReview, Promotion, SignupSettings, SignupEntry, AdminUser } from './types';
+import type { Event, EventCategory, Brand, Partner, Location, Review, KOLReview, Promotion, SignupSettings, SignupEntry, AdminUser, Member, MemberType, MemberRoleApplication } from './types';
 
 import { APIProvider, Map, AdvancedMarker, Pin, InfoWindow, useMapsLibrary, useMap } from '@vis.gl/react-google-maps';
 
@@ -86,6 +92,15 @@ const EVENT_CATEGORIES: { value: EventCategory; label: string; emoji: string; de
 ];
 const eventCategoryLabel = (category: string) =>
   EVENT_CATEGORIES.find((c) => c.value === category)?.label || category;
+
+// 會員身分別
+const MEMBER_TYPES: { value: MemberType; label: string; emoji: string; badge: string }[] = [
+  { value: 'general', label: '一般會員', emoji: '👤', badge: 'bg-stone-100 text-stone-600' },
+  { value: 'creator', label: '創作者 KOC/KOL', emoji: '✨', badge: 'bg-purple-100 text-purple-700' },
+  { value: 'business', label: '企業團體', emoji: '🏢', badge: 'bg-blue-100 text-blue-700' },
+];
+const memberTypeLabel = (t: string) => MEMBER_TYPES.find((m) => m.value === t)?.label || t;
+const memberTypeBadge = (t: string) => MEMBER_TYPES.find((m) => m.value === t)?.badge || 'bg-stone-100 text-stone-600';
 
 // 活動期間顯示：時間為選填（TIME 欄位存 HH:MM:SS，取 HH:MM）
 // 同一天：2026-07-10 18:30 ~ 21:00；跨日：2026-07-01 ~ 2026-07-31
@@ -300,13 +315,21 @@ const ImageUpload = ({ value, onChange, label, folder = 'uploads' }: { value?: s
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [session, setSession] = useState<any>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
+    const checkAdmin = async (s: any) => {
+      if (!s) { setIsAdmin(false); return; }
+      const { data } = await supabase.from('admin_users').select('user_id').eq('user_id', s.user.id).maybeSingle();
+      setIsAdmin(!!data);
+    };
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
+      checkAdmin(session);
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
+      checkAdmin(session);
     });
     return () => subscription.unsubscribe();
   }, []);
@@ -332,12 +355,23 @@ const Navbar = () => {
             <Link to="/reviews" className="text-stone-600 hover:text-orange-600 transition-colors font-medium">開箱分享</Link>
             <Link to="/map" className="text-stone-600 hover:text-orange-600 transition-colors font-medium">美食地圖</Link>
             <Link to="/partners" className="text-stone-600 hover:text-orange-600 transition-colors font-medium">贊助夥伴</Link>
-            {session ? (
+            {isAdmin && (
               <Link to="/admin" className="flex items-center gap-2 bg-stone-900 text-white px-4 py-2 rounded-full text-sm font-medium hover:bg-stone-800 transition-colors">
                 <LayoutDashboard className="w-4 h-4" />
                 管理中心
               </Link>
-            ) : null}
+            )}
+            {session ? (
+              <Link to="/member" className="flex items-center gap-2 bg-orange-600 text-white px-4 py-2 rounded-full text-sm font-medium hover:bg-orange-500 transition-colors">
+                <User className="w-4 h-4" />
+                會員中心
+              </Link>
+            ) : (
+              <Link to="/member/login" className="flex items-center gap-2 border border-stone-300 text-stone-700 px-4 py-2 rounded-full text-sm font-medium hover:border-orange-500 hover:text-orange-600 transition-colors">
+                <LogIn className="w-4 h-4" />
+                登入 / 註冊
+              </Link>
+            )}
           </div>
 
           {/* Mobile Menu Button */}
@@ -362,9 +396,14 @@ const Navbar = () => {
               <Link to="/reviews" onClick={() => setIsOpen(false)} className="block px-3 py-4 text-base font-medium text-stone-600 border-b border-stone-100">開箱分享</Link>
               <Link to="/map" onClick={() => setIsOpen(false)} className="block px-3 py-4 text-base font-medium text-stone-600 border-b border-stone-100">美食地圖</Link>
               <Link to="/partners" onClick={() => setIsOpen(false)} className="block px-3 py-4 text-base font-medium text-stone-600 border-b border-stone-100">贊助夥伴</Link>
+              {isAdmin && (
+                <Link to="/admin" onClick={() => setIsOpen(false)} className="block px-3 py-4 text-base font-medium text-stone-800 border-b border-stone-100">管理中心</Link>
+              )}
               {session ? (
-                <Link to="/admin" onClick={() => setIsOpen(false)} className="block px-3 py-4 text-base font-medium text-orange-600">管理中心</Link>
-              ) : null}
+                <Link to="/member" onClick={() => setIsOpen(false)} className="block px-3 py-4 text-base font-medium text-orange-600">會員中心</Link>
+              ) : (
+                <Link to="/member/login" onClick={() => setIsOpen(false)} className="block px-3 py-4 text-base font-medium text-orange-600">登入 / 註冊</Link>
+              )}
             </div>
           </motion.div>
         )}
@@ -1610,6 +1649,305 @@ const Login = () => {
   );
 };
 
+// ── 會員登入 ─────────────────────────────────────────────
+const MemberLogin = () => {
+  const [email, setEmail] = useState('');
+  const [sent, setSent] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) navigate('/member');
+    });
+  }, []);
+
+  const loginGoogle = async () => {
+    setError('');
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: `${window.location.origin}/member` },
+    });
+    if (error) setError(error.message);
+  };
+
+  const loginEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: { emailRedirectTo: `${window.location.origin}/member` },
+    });
+    setLoading(false);
+    if (error) setError(error.message);
+    else setSent(true);
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-stone-50 px-4 pt-16">
+      <div className="max-w-md w-full bg-white rounded-3xl shadow-xl p-8 border border-stone-100">
+        <div className="text-center mb-8">
+          <img src="/logo-mark.png" alt="食在俱樂部" className="h-10 w-auto mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-stone-900">會員登入 / 註冊</h2>
+          <p className="text-stone-500 text-sm mt-1">加入食在俱樂部，搶先收到優惠與抽獎資訊</p>
+        </div>
+
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded-xl text-red-600 text-sm">{error}</div>
+        )}
+
+        {sent ? (
+          <div className="p-6 bg-emerald-50 border border-emerald-100 rounded-xl text-center">
+            <Mail className="w-10 h-10 text-emerald-600 mx-auto mb-3" />
+            <p className="font-bold text-stone-800 mb-1">登入連結已寄出</p>
+            <p className="text-sm text-stone-500">請到 <span className="font-medium">{email}</span> 收信，點擊信中連結即可登入。</p>
+          </div>
+        ) : (
+          <>
+            <button
+              onClick={loginGoogle}
+              className="w-full flex items-center justify-center gap-3 border border-stone-200 rounded-xl py-3 font-medium text-stone-700 hover:bg-stone-50 transition-colors mb-4"
+            >
+              <svg className="w-5 h-5" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.7-6.1 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.3-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 16 19 13 24 13c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.6 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C41.4 34.9 44 30 44 24c0-1.3-.1-2.3-.4-3.5z"/></svg>
+              使用 Google 登入
+            </button>
+
+            <div className="flex items-center gap-3 my-5">
+              <div className="flex-1 h-px bg-stone-100" />
+              <span className="text-xs text-stone-400">或用 Email</span>
+              <div className="flex-1 h-px bg-stone-100" />
+            </div>
+
+            <form onSubmit={loginEmail} className="space-y-4">
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl border border-stone-200 focus:ring-2 focus:ring-orange-600 outline-none"
+                placeholder="you@example.com"
+                required
+              />
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-orange-600 text-white py-3 rounded-xl font-bold hover:bg-orange-500 transition-all disabled:opacity-50"
+              >
+                {loading ? '寄送中...' : '寄送登入連結'}
+              </button>
+            </form>
+            <p className="text-xs text-stone-400 mt-4 text-center">首次登入會自動建立會員帳號</p>
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ── 會員中心 ─────────────────────────────────────────────
+const MemberCenter = () => {
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(true);
+  const [member, setMember] = useState<Member | null>(null);
+  const [application, setApplication] = useState<MemberRoleApplication | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [savedMsg, setSavedMsg] = useState('');
+
+  // 個人資料表單
+  const [displayName, setDisplayName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [consent, setConsent] = useState(false);
+
+  // 升級申請表單
+  const [showApplyForm, setShowApplyForm] = useState(false);
+  const [applyType, setApplyType] = useState<'creator' | 'business'>('creator');
+  const [applyForm, setApplyForm] = useState({ real_name: '', contact_phone: '', platform_links: '', follower_count: '', company_name: '', tax_id: '', note: '' });
+  const [applying, setApplying] = useState(false);
+
+  const load = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) { navigate('/member/login'); return; }
+    const { data: m } = await supabase.from('members').select('*').eq('id', session.user.id).maybeSingle();
+    if (m) {
+      setMember(m as Member);
+      setDisplayName(m.display_name || '');
+      setPhone(m.phone || '');
+      setConsent(!!m.marketing_consent);
+    }
+    const { data: apps } = await supabase.from('member_role_applications')
+      .select('*').eq('user_id', session.user.id).order('created_at', { ascending: false }).limit(1);
+    setApplication((apps && apps[0]) as MemberRoleApplication || null);
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const saveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!member) return;
+    setSaving(true);
+    setSavedMsg('');
+    const { error } = await supabase.from('members')
+      .update({ display_name: displayName, phone, marketing_consent: consent })
+      .eq('id', member.id);
+    setSaving(false);
+    if (error) alert(`儲存失敗: ${error.message}`);
+    else { setSavedMsg('已儲存'); setTimeout(() => setSavedMsg(''), 2000); }
+  };
+
+  const submitApplication = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!member) return;
+    setApplying(true);
+    const payload = {
+      user_id: member.id,
+      requested_type: applyType,
+      status: 'pending' as const,
+      real_name: applyForm.real_name || null,
+      contact_phone: applyForm.contact_phone || null,
+      platform_links: applyType === 'creator' ? (applyForm.platform_links || null) : null,
+      follower_count: applyType === 'creator' ? (applyForm.follower_count || null) : null,
+      company_name: applyType === 'business' ? (applyForm.company_name || null) : null,
+      tax_id: applyType === 'business' ? (applyForm.tax_id || null) : null,
+      note: applyForm.note || null,
+    };
+    const { error } = await supabase.from('member_role_applications').insert([payload]);
+    setApplying(false);
+    if (error) { alert(`送出失敗: ${error.message}`); return; }
+    setShowApplyForm(false);
+    load();
+  };
+
+  const logout = async () => {
+    await supabase.auth.signOut();
+    navigate('/');
+  };
+
+  if (loading) return <div className="pt-32 text-center text-stone-400">載入中...</div>;
+  if (!member) return <div className="pt-32 text-center text-stone-400">找不到會員資料</div>;
+
+  const statusText: Record<string, string> = { pending: '審核中', approved: '已通過', rejected: '未通過' };
+  const statusColor: Record<string, string> = { pending: 'bg-amber-100 text-amber-700', approved: 'bg-emerald-100 text-emerald-700', rejected: 'bg-red-100 text-red-600' };
+
+  return (
+    <div className="pt-24 pb-20 bg-stone-50 min-h-screen">
+      <div className="max-w-2xl mx-auto px-4">
+        <div className="flex items-center justify-between mb-8">
+          <h1 className="text-2xl font-bold text-stone-900">會員中心</h1>
+          <button onClick={logout} className="flex items-center gap-1.5 text-sm text-stone-500 hover:text-red-600 transition-colors">
+            <LogOut className="w-4 h-4" /> 登出
+          </button>
+        </div>
+
+        {/* 身分卡 */}
+        <div className="bg-white rounded-3xl shadow-sm border border-stone-100 p-6 mb-6">
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 rounded-full bg-orange-100 flex items-center justify-center">
+              <User className="w-7 h-7 text-orange-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-bold text-stone-900 truncate">{member.display_name || '會員'}</p>
+              <p className="text-sm text-stone-400 truncate">{member.email}</p>
+            </div>
+            <span className={cn('px-3 py-1 rounded-full text-xs font-bold shrink-0', memberTypeBadge(member.member_type))}>
+              {memberTypeLabel(member.member_type)}
+            </span>
+          </div>
+        </div>
+
+        {/* 個人資料 */}
+        <form onSubmit={saveProfile} className="bg-white rounded-3xl shadow-sm border border-stone-100 p-6 mb-6 space-y-5">
+          <h2 className="font-bold text-stone-800">個人資料</h2>
+          <div>
+            <label className="block text-sm font-medium text-stone-600 mb-2">暱稱 / 姓名</label>
+            <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} className="w-full px-4 py-2.5 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-stone-600 mb-2">聯絡電話</label>
+            <input value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full px-4 py-2.5 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" placeholder="0912-345-678" />
+          </div>
+          <label className="flex items-start gap-3 p-3 rounded-xl bg-stone-50 cursor-pointer">
+            <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="w-4 h-4 accent-orange-600 mt-0.5" />
+            <span className="text-sm text-stone-600">我願意收到食在俱樂部的優惠、活動與抽獎資訊</span>
+          </label>
+          <div className="flex items-center gap-3">
+            <button type="submit" disabled={saving} className="bg-orange-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-orange-500 transition-colors disabled:opacity-50">
+              {saving ? '儲存中...' : '儲存'}
+            </button>
+            {savedMsg && <span className="text-emerald-600 text-sm flex items-center gap-1"><CheckCircle2 className="w-4 h-4" />{savedMsg}</span>}
+          </div>
+        </form>
+
+        {/* 會員身分升級 */}
+        <div className="bg-white rounded-3xl shadow-sm border border-stone-100 p-6">
+          <h2 className="font-bold text-stone-800 mb-1">會員身分</h2>
+          <p className="text-sm text-stone-400 mb-4">升級為創作者或企業團體，享有專屬合作與活動機會（需審核）</p>
+
+          {member.member_type !== 'general' ? (
+            <div className="p-4 rounded-xl bg-emerald-50 text-emerald-700 text-sm flex items-center gap-2">
+              <ShieldCheck className="w-5 h-5" /> 您目前為「{memberTypeLabel(member.member_type)}」身分
+            </div>
+          ) : application && application.status === 'pending' ? (
+            <div className="p-4 rounded-xl bg-amber-50 text-amber-700 text-sm">
+              您的「{memberTypeLabel(application.requested_type)}」申請審核中，我們會盡快處理。
+            </div>
+          ) : (
+            <>
+              {application && (
+                <div className={cn('p-3 rounded-xl text-sm mb-4', statusColor[application.status])}>
+                  上次「{memberTypeLabel(application.requested_type)}」申請：{statusText[application.status]}
+                  {application.review_note ? `（${application.review_note}）` : ''}
+                </div>
+              )}
+              {!showApplyForm ? (
+                <button onClick={() => setShowApplyForm(true)} className="border border-orange-200 text-orange-600 px-5 py-2.5 rounded-xl font-bold hover:bg-orange-50 transition-colors">
+                  申請升級身分
+                </button>
+              ) : (
+                <form onSubmit={submitApplication} className="space-y-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    {(['creator', 'business'] as const).map((t) => (
+                      <button
+                        type="button"
+                        key={t}
+                        onClick={() => setApplyType(t)}
+                        className={cn('px-4 py-3 rounded-xl border text-sm font-bold transition-colors flex items-center justify-center gap-2',
+                          applyType === t ? 'border-orange-600 bg-orange-50 text-orange-700' : 'border-stone-200 text-stone-500 hover:bg-stone-50')}
+                      >
+                        {t === 'creator' ? <Sparkles className="w-4 h-4" /> : <Building2 className="w-4 h-4" />}
+                        {memberTypeLabel(t)}
+                      </button>
+                    ))}
+                  </div>
+                  <input value={applyForm.real_name} onChange={(e) => setApplyForm({ ...applyForm, real_name: e.target.value })} className="w-full px-4 py-2.5 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" placeholder="真實姓名 / 聯絡人" required />
+                  <input value={applyForm.contact_phone} onChange={(e) => setApplyForm({ ...applyForm, contact_phone: e.target.value })} className="w-full px-4 py-2.5 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" placeholder="聯絡電話" required />
+                  {applyType === 'creator' ? (
+                    <>
+                      <input value={applyForm.platform_links} onChange={(e) => setApplyForm({ ...applyForm, platform_links: e.target.value })} className="w-full px-4 py-2.5 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" placeholder="社群平台 / 作品連結（IG、YT、TikTok…）" required />
+                      <input value={applyForm.follower_count} onChange={(e) => setApplyForm({ ...applyForm, follower_count: e.target.value })} className="w-full px-4 py-2.5 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" placeholder="粉絲 / 追蹤數（例：IG 1.2 萬）" />
+                    </>
+                  ) : (
+                    <>
+                      <input value={applyForm.company_name} onChange={(e) => setApplyForm({ ...applyForm, company_name: e.target.value })} className="w-full px-4 py-2.5 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" placeholder="公司 / 團體名稱" required />
+                      <input value={applyForm.tax_id} onChange={(e) => setApplyForm({ ...applyForm, tax_id: e.target.value })} className="w-full px-4 py-2.5 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" placeholder="統一編號（選填）" />
+                    </>
+                  )}
+                  <textarea value={applyForm.note} onChange={(e) => setApplyForm({ ...applyForm, note: e.target.value })} className="w-full px-4 py-2.5 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600 h-20" placeholder="補充說明（選填）" />
+                  <div className="flex gap-3">
+                    <button type="button" onClick={() => setShowApplyForm(false)} className="flex-1 px-4 py-2.5 rounded-xl border border-stone-200 font-bold hover:bg-stone-50">取消</button>
+                    <button type="submit" disabled={applying} className="flex-1 px-4 py-2.5 rounded-xl bg-orange-600 text-white font-bold hover:bg-orange-500 disabled:opacity-50">{applying ? '送出中...' : '送出申請'}</button>
+                  </div>
+                </form>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
 const GOOGLE_MAPS_MAP_ID = import.meta.env.VITE_GOOGLE_MAPS_MAP_ID || 'DEMO_MAP_ID';
 
@@ -2511,7 +2849,10 @@ const PlaceAutocomplete = ({ onPlaceSelect }: PlaceAutocompleteProps) => {
 };
 
 const AdminDashboard = () => {
-  const [activeTab, setActiveTab] = useState<'events' | 'brands' | 'partners' | 'locations' | 'kol_reviews' | 'promotions' | 'accounts'>('events');
+  const [activeTab, setActiveTab] = useState<'events' | 'brands' | 'partners' | 'locations' | 'kol_reviews' | 'promotions' | 'members' | 'accounts'>('events');
+  const [adminMembers, setAdminMembers] = useState<Member[]>([]);
+  const [memberApplications, setMemberApplications] = useState<MemberRoleApplication[]>([]);
+  const [memberTypeFilter, setMemberTypeFilter] = useState<'all' | MemberType>('all');
   const [adminRole, setAdminRole] = useState<'owner' | 'editor' | null>(null);
   const [myUserId, setMyUserId] = useState<string>('');
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
@@ -2758,11 +3099,40 @@ const AdminDashboard = () => {
         if (error) throw error;
         console.log('Fetched locations:', data);
         if (data) setLocations(data as any);
+      } else if (activeTab === 'members') {
+        const { data: membersData, error } = await supabase.from('members').select('*').order('created_at', { ascending: false });
+        if (error) throw error;
+        if (membersData) setAdminMembers(membersData as any);
+        const { data: appsData } = await supabase.from('member_role_applications')
+          .select('*').order('created_at', { ascending: false });
+        if (appsData) setMemberApplications(appsData as any);
       }
     } catch (error: any) {
       console.error(`讀取 ${activeTab} 資料失敗:`, error);
       alert(`讀取資料失敗: ${error.message || '未知錯誤'}`);
     }
+  };
+
+  const handleReviewApplication = async (appId: string, approve: boolean) => {
+    const note = approve ? undefined : (window.prompt('未通過原因（會顯示給會員，可留空）：') ?? undefined);
+    const { error } = await supabase.rpc('member_review_application', { app_id: appId, approve, p_review_note: note || null });
+    if (error) { alert(`審核失敗: ${error.message}`); return; }
+    fetchData();
+  };
+
+  const exportMembersCsv = () => {
+    const rows = adminMembers
+      .filter(m => memberTypeFilter === 'all' || m.member_type === memberTypeFilter)
+      .map(m => [m.display_name || '', m.email || '', m.phone || '', memberTypeLabel(m.member_type), m.marketing_consent ? '是' : '否', new Date(m.created_at).toLocaleDateString('zh-TW', { timeZone: 'Asia/Taipei' })]);
+    const header = ['暱稱', 'Email', '電話', '身分', '行銷同意', '註冊日'];
+    const csv = [header, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `members_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const handleSaveEvent = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -3541,6 +3911,15 @@ const AdminDashboard = () => {
             >
               地圖管理
             </button>
+            <button
+              onClick={() => setActiveTab('members')}
+              className={cn(
+                "w-full text-left px-4 py-3 rounded-xl font-medium transition-all",
+                activeTab === 'members' ? "bg-orange-600 text-white shadow-lg" : "text-stone-600 hover:bg-stone-200"
+              )}
+            >
+              會員管理
+            </button>
             {adminRole === 'owner' && (
               <button
                 onClick={() => setActiveTab('accounts')}
@@ -4017,6 +4396,104 @@ const AdminDashboard = () => {
                 </div>
               </>
             )}
+
+            {activeTab === 'members' && (() => {
+              const memberById = Object.fromEntries(adminMembers.map(m => [m.id, m]));
+              const pendingApps = memberApplications.filter(a => a.status === 'pending');
+              const filteredMembers = adminMembers.filter(m => memberTypeFilter === 'all' || m.member_type === memberTypeFilter);
+              return (
+                <>
+                  <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-xl font-bold">會員管理</h2>
+                    <button onClick={exportMembersCsv} className="flex items-center gap-2 border border-stone-200 text-stone-600 px-4 py-2 rounded-lg text-sm font-medium hover:bg-stone-50">
+                      <Download className="w-4 h-4" /> 匯出 CSV
+                    </button>
+                  </div>
+
+                  {/* 升級申請審核 */}
+                  {pendingApps.length > 0 && (
+                    <div className="mb-8">
+                      <h3 className="text-sm font-bold text-stone-800 mb-3 flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4 text-amber-500" /> 待審核申請 <span className="text-stone-400 font-normal">{pendingApps.length}</span>
+                      </h3>
+                      <div className="space-y-3">
+                        {pendingApps.map(app => {
+                          const m = memberById[app.user_id];
+                          return (
+                            <div key={app.id} className="border border-amber-100 bg-amber-50/50 rounded-2xl p-4">
+                              <div className="flex items-start justify-between gap-4 flex-wrap">
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <span className={cn('px-2 py-0.5 rounded-full text-xs font-bold', memberTypeBadge(app.requested_type))}>申請：{memberTypeLabel(app.requested_type)}</span>
+                                    <span className="text-sm font-bold text-stone-800">{app.real_name || m?.display_name || '—'}</span>
+                                  </div>
+                                  <p className="text-xs text-stone-500">{m?.email} · {app.contact_phone}</p>
+                                  {app.requested_type === 'creator' ? (
+                                    <p className="text-sm text-stone-600 mt-1">平台：{app.platform_links || '—'}　粉絲：{app.follower_count || '—'}</p>
+                                  ) : (
+                                    <p className="text-sm text-stone-600 mt-1">公司：{app.company_name || '—'}　統編：{app.tax_id || '—'}</p>
+                                  )}
+                                  {app.note && <p className="text-sm text-stone-500 mt-1">備註：{app.note}</p>}
+                                </div>
+                                <div className="flex gap-2 shrink-0">
+                                  <button onClick={() => handleReviewApplication(app.id, true)} className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-sm font-bold hover:bg-emerald-500">通過</button>
+                                  <button onClick={() => handleReviewApplication(app.id, false)} className="px-3 py-1.5 rounded-lg border border-stone-200 text-stone-600 text-sm font-bold hover:bg-white">婉拒</button>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 身分篩選 */}
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    {([['all', '全部'], ...MEMBER_TYPES.map(t => [t.value, t.label] as [string, string])] as [string, string][]).map(([val, label]) => {
+                      const count = val === 'all' ? adminMembers.length : adminMembers.filter(m => m.member_type === val).length;
+                      return (
+                        <button key={val} onClick={() => setMemberTypeFilter(val as any)}
+                          className={cn('px-4 py-1.5 rounded-full text-sm font-medium transition-colors flex items-center gap-1.5',
+                            memberTypeFilter === val ? 'bg-orange-600 text-white' : 'text-stone-600 hover:bg-stone-100')}>
+                          {label}<span className={cn('text-xs', memberTypeFilter === val ? 'text-orange-100' : 'text-stone-400')}>{count}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                      <thead>
+                        <tr className="border-b border-stone-100 text-stone-400 text-sm">
+                          <th className="pb-3 font-medium">會員</th>
+                          <th className="pb-3 font-medium">身分</th>
+                          <th className="pb-3 font-medium">行銷同意</th>
+                          <th className="pb-3 font-medium">註冊日</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-stone-50">
+                        {filteredMembers.map(m => (
+                          <tr key={m.id}>
+                            <td className="py-3">
+                              <p className="font-medium text-stone-800">{m.display_name || '—'}</p>
+                              <p className="text-xs text-stone-400">{m.email}{m.phone ? ` · ${m.phone}` : ''}</p>
+                            </td>
+                            <td className="py-3">
+                              <span className={cn('px-2 py-0.5 rounded-full text-xs font-bold', memberTypeBadge(m.member_type))}>{memberTypeLabel(m.member_type)}</span>
+                            </td>
+                            <td className="py-3 text-sm">{m.marketing_consent ? <span className="text-emerald-600">✓ 同意</span> : <span className="text-stone-300">—</span>}</td>
+                            <td className="py-3 text-sm text-stone-500">{new Date(m.created_at).toLocaleDateString('zh-TW', { timeZone: 'Asia/Taipei' })}</td>
+                          </tr>
+                        ))}
+                        {filteredMembers.length === 0 && (
+                          <tr><td colSpan={4} className="py-12 text-center text-stone-400">目前尚無會員資料</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              );
+            })()}
 
             {activeTab === 'accounts' && adminRole === 'owner' && (
               <>
@@ -5519,6 +5996,8 @@ export default function App() {
             <Route path="/map" element={<MapPage />} />
             <Route path="/partners" element={<PartnersPage />} />
             <Route path="/login" element={<Login />} />
+            <Route path="/member/login" element={<MemberLogin />} />
+            <Route path="/member" element={<MemberCenter />} />
             <Route path="/admin" element={<AdminDashboard />} />
           </Routes>
           

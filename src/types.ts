@@ -1,6 +1,44 @@
 // 活動分類（未來可能新增，DB 為 TEXT 欄位）
 export type EventCategory = 'festival' | 'dining';
 
+// ── 會員系統 ─────────────────────────────────────────────
+export type MemberType = 'general' | 'creator' | 'business';
+
+export interface Member {
+  id: string;
+  email: string | null;
+  display_name: string | null;
+  phone: string | null;
+  member_type: MemberType;
+  avatar_url: string | null;
+  marketing_consent: boolean;
+  line_user_id: string | null; // 預留第二期綁定官方 LINE
+  created_at: string;
+  updated_at: string;
+}
+
+export type ApplicationStatus = 'pending' | 'approved' | 'rejected';
+
+export interface MemberRoleApplication {
+  id: string;
+  user_id: string;
+  requested_type: Exclude<MemberType, 'general'>; // creator | business
+  status: ApplicationStatus;
+  real_name: string | null;
+  contact_phone: string | null;
+  platform_links: string | null; // 創作者
+  follower_count: string | null; // 創作者
+  company_name: string | null;   // 企業
+  tax_id: string | null;         // 企業
+  note: string | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  review_note: string | null;
+  created_at: string;
+  // join 用
+  member?: Member;
+}
+
 export interface Event {
   id: string;
   title: string;
