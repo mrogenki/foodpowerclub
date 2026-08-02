@@ -54,6 +54,13 @@ Deno.serve(async (req) => {
     });
     const tokenData = await tokenRes.json();
     if (!tokenRes.ok || !tokenData.access_token) {
+      console.error('LINE token exchange failed', {
+        status: tokenRes.status,
+        hasChannelId: !!LINE_LOGIN_CHANNEL_ID,
+        hasSecret: !!LINE_LOGIN_CHANNEL_SECRET,
+        redirect_uri,
+        lineError: tokenData,
+      });
       return json({ error: 'LINE 授權失敗', detail: tokenData }, 400);
     }
 
