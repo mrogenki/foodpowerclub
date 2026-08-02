@@ -4646,8 +4646,13 @@ const AdminDashboard = () => {
                         className="w-full px-4 py-2.5 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600 bg-white"
                       />
                     ) : (
-                      <div className="space-y-2 bg-white border border-stone-200 rounded-xl p-3">
-                        <input value={pushCard.imageUrl} onChange={(e) => setPushCard({ ...pushCard, imageUrl: e.target.value })} placeholder="圖片網址（https，選填，建議 1:1.51 橫幅）" className="w-full px-3 py-2 rounded-lg border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600 text-sm" />
+                      <div className="space-y-3 bg-white border border-stone-200 rounded-xl p-3">
+                        <ImageUpload
+                          label="卡片圖片（選填，建議橫幅比例 1.51:1）"
+                          value={pushCard.imageUrl}
+                          onChange={(url) => setPushCard({ ...pushCard, imageUrl: url })}
+                          folder="line-push"
+                        />
                         <input value={pushCard.title} onChange={(e) => setPushCard({ ...pushCard, title: e.target.value })} maxLength={40} placeholder="標題（必填，上限 40 字）" className="w-full px-3 py-2 rounded-lg border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600 text-sm" />
                         <input value={pushCard.text} onChange={(e) => setPushCard({ ...pushCard, text: e.target.value })} maxLength={60} placeholder="說明文字（有圖上限 60 字）" className="w-full px-3 py-2 rounded-lg border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600 text-sm" />
                         <div className="grid grid-cols-2 gap-2">
