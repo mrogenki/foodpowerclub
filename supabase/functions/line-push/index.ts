@@ -34,7 +34,7 @@ Deno.serve(async (req) => {
     const { data: adminRow } = await admin.from('admin_users').select('role').eq('user_id', user.id).maybeSingle();
     if (!adminRow) return json({ error: '僅管理員可發送' }, 403);
 
-    const { message, member_type, mode, card } = await req.json();
+    const { message, member_type, mode, card, line_user_ids } = await req.json();
     if (!TOKEN) {
       console.error('LINE_MESSAGING_ACCESS_TOKEN missing');
       return json({ error: '伺服器尚未設定 LINE 推播金鑰' }, 500);
@@ -69,16 +69,20 @@ Deno.serve(async (req) => {
       messages = [{ type: 'text', text }];
     }
 
-    // 對象：已綁定 LINE + 同意行銷 (+ 身分別)
-    let q = admin.from('members')
-      .select('line_user_id')
-      .not('line_user_id', 'is', null)
-      .eq('marketing_consent', true);
-    if (member_type && member_type !== 'all') q = q.eq('member_type', member_type);
-    const { data: rows, error: qErr } = await q;
-    if (qErr) return json({ error: qErr.message }, 400);
-
-    const ids = (rows || []).map((r: { line_user_id: string }) => r.line_user_id).filter(Boolean);
+    // 對象：指定名單（中獎通知，服務訊息） or 已綁定 LINE + 同意行銷 (+ 身分別)
+    let ids: string[];
+    if (Array.isArray(line_user_ids) && line_user_ids.length > 0) {
+      ids = line_user_ids.filter((x: unknown): x is string => typeof x === 'string' && !!x);
+    } else {
+      let q = admin.from('members')
+        .select('line_user_id')
+        .not('line_user_id', 'is', null)
+        .eq('marketing_consent', true);
+      if (member_type && member_type !== 'all') q = q.eq('member_type', member_type);
+      const { data: rows, error: qErr } = await q;
+      if (qErr) return json({ error: qErr.message }, 400);
+      ids = (rows || []).map((r: { line_user_id: string }) => r.line_user_id).filter(Boolean);
+    }
     if (ids.length === 0) return json({ ok: true, sent: 0, failed: 0 });
 
     let sent = 0, failed = 0;

@@ -97,6 +97,33 @@ export interface BrandEvent {
   created_at: string;
 }
 
+// ── 抽獎 ─────────────────────────────────────────────────
+export type DrawPool = 'all_members' | 'line_bound' | 'event_signup';
+
+export interface Draw {
+  id: string;
+  title: string;
+  prize: string | null;
+  pool: DrawPool;
+  event_id: string | null;
+  winner_count: number;
+  status: 'open' | 'drawn';
+  created_at: string;
+  drawn_at: string | null;
+}
+
+export interface DrawWinner {
+  id: string;
+  draw_id: string;
+  user_id: string | null;
+  entry_id: string | null;
+  name: string | null;
+  contact: string | null;
+  line_user_id: string | null;
+  notified: boolean;
+  created_at: string;
+}
+
 export interface Location {
   id: string;
   name: string;

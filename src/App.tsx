@@ -66,7 +66,7 @@ const queryClient = new QueryClient({
   },
 });
 import { cn } from './lib/utils';
-import type { Event, EventCategory, Brand, Partner, Location, Review, KOLReview, Promotion, SignupSettings, SignupEntry, AdminUser, Member, MemberType, MemberRoleApplication } from './types';
+import type { Event, EventCategory, Brand, Partner, Location, Review, KOLReview, Promotion, SignupSettings, SignupEntry, AdminUser, Member, MemberType, MemberRoleApplication, Draw, DrawWinner, DrawPool } from './types';
 
 import { APIProvider, Map, AdvancedMarker, Pin, InfoWindow, useMapsLibrary, useMap } from '@vis.gl/react-google-maps';
 
@@ -2989,7 +2989,11 @@ const PlaceAutocomplete = ({ onPlaceSelect }: PlaceAutocompleteProps) => {
 };
 
 const AdminDashboard = () => {
-  const [activeTab, setActiveTab] = useState<'events' | 'brands' | 'partners' | 'locations' | 'kol_reviews' | 'promotions' | 'members' | 'accounts'>('events');
+  const [activeTab, setActiveTab] = useState<'events' | 'brands' | 'partners' | 'locations' | 'kol_reviews' | 'promotions' | 'members' | 'draws' | 'accounts'>('events');
+  const [draws, setDraws] = useState<Draw[]>([]);
+  const [drawWinners, setDrawWinners] = useState<Record<string, DrawWinner[]>>({});
+  const [drawForm, setDrawForm] = useState<{ title: string; prize: string; pool: DrawPool; event_id: string; winner_count: string }>({ title: '', prize: '', pool: 'all_members', event_id: '', winner_count: '1' });
+  const [drawBusy, setDrawBusy] = useState(false);
   const [adminMembers, setAdminMembers] = useState<Member[]>([]);
   const [memberApplications, setMemberApplications] = useState<MemberRoleApplication[]>([]);
   const [memberTypeFilter, setMemberTypeFilter] = useState<'all' | MemberType>('all');
@@ -3261,6 +3265,14 @@ const AdminDashboard = () => {
         const { data: appsData } = await supabase.from('member_role_applications')
           .select('*').order('created_at', { ascending: false });
         if (appsData) setMemberApplications(appsData as any);
+      } else if (activeTab === 'draws') {
+        const { data: drawsData, error } = await supabase.from('draws').select('*').order('created_at', { ascending: false });
+        if (error) throw error;
+        if (drawsData) setDraws(drawsData as any);
+        const { data: winnersData } = await supabase.from('draw_winners').select('*').order('created_at', { ascending: true });
+        const grouped: Record<string, DrawWinner[]> = {};
+        (winnersData || []).forEach((w: any) => { (grouped[w.draw_id] = grouped[w.draw_id] || []).push(w); });
+        setDrawWinners(grouped);
       }
     } catch (error: any) {
       console.error(`讀取 ${activeTab} 資料失敗:`, error);
@@ -3322,6 +3334,75 @@ const AdminDashboard = () => {
     a.download = `members_${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  // ── 抽獎 ──
+  const createDraw = async () => {
+    if (!drawForm.title.trim()) { alert('請輸入抽獎標題'); return; }
+    if (drawForm.pool === 'event_signup' && !drawForm.event_id) { alert('請選擇活動（報名者抽獎）'); return; }
+    const n = parseInt(drawForm.winner_count) || 1;
+    setDrawBusy(true);
+    const { error } = await supabase.from('draws').insert([{
+      title: drawForm.title.trim(),
+      prize: drawForm.prize.trim() || null,
+      pool: drawForm.pool,
+      event_id: drawForm.pool === 'event_signup' ? drawForm.event_id : null,
+      winner_count: Math.min(Math.max(n, 1), 1000),
+    }]);
+    setDrawBusy(false);
+    if (error) { alert(`建立失敗: ${error.message}`); return; }
+    setDrawForm({ title: '', prize: '', pool: 'all_members', event_id: '', winner_count: '1' });
+    fetchData();
+  };
+
+  const runDraw = async (d: Draw) => {
+    if (!window.confirm(`確定要開獎「${d.title}」嗎？將隨機抽出 ${d.winner_count} 位。`)) return;
+    setDrawBusy(true);
+    const { data, error } = await supabase.rpc('draw_run', { p_draw_id: d.id });
+    setDrawBusy(false);
+    if (error) { alert(`開獎失敗: ${error.message}`); return; }
+    alert(`已抽出 ${data} 位中獎者${data < d.winner_count ? '（抽獎池人數不足，已全部抽出）' : ''}`);
+    fetchData();
+  };
+
+  const resetDraw = async (d: Draw) => {
+    if (!window.confirm(`確定要「重抽」嗎？將清除「${d.title}」目前的中獎名單並回到未開獎。`)) return;
+    const { error } = await supabase.rpc('draw_reset', { p_draw_id: d.id });
+    if (error) { alert(`重抽失敗: ${error.message}`); return; }
+    fetchData();
+  };
+
+  const deleteDraw = async (d: Draw) => {
+    if (!window.confirm(`確定刪除抽獎「${d.title}」？名單也會一併刪除。`)) return;
+    const { error } = await supabase.from('draws').delete().eq('id', d.id);
+    if (error) { alert(`刪除失敗: ${error.message}`); return; }
+    fetchData();
+  };
+
+  const notifyDrawWinners = async (d: Draw) => {
+    const winners = drawWinners[d.id] || [];
+    const ids = winners.map(w => w.line_user_id).filter(Boolean) as string[];
+    if (ids.length === 0) { alert('本次沒有「已綁定 LINE」的中獎者，無法用 LINE 通知（可用名單另行聯絡）'); return; }
+    const defaultMsg = `🎉 恭喜您抽中「${d.prize || d.title}」！\n我們將盡快與您聯繫，感謝參與食在俱樂部的活動。`;
+    const msg = window.prompt(`要發送給 ${ids.length} 位已綁定 LINE 的中獎者的訊息：`, defaultMsg);
+    if (msg === null) return;
+    if (!msg.trim()) { alert('訊息不可空白'); return; }
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) { navigate('/login'); return; }
+    setDrawBusy(true);
+    const { data, error } = await supabase.functions.invoke('line-push', { body: { message: msg.trim(), line_user_ids: ids } });
+    setDrawBusy(false);
+    if (error) { let m = '通知失敗'; try { const b = await (error as any).context.json(); if (b?.error) m = b.error; } catch { /* ignore */ } alert(m); return; }
+    await supabase.from('draw_winners').update({ notified: true }).eq('draw_id', d.id).not('line_user_id', 'is', null);
+    alert(`已通知：成功 ${data.sent} 位${data.failed ? `，失敗 ${data.failed} 位` : ''}`);
+    fetchData();
+  };
+
+  const copyWinners = (d: Draw) => {
+    const winners = drawWinners[d.id] || [];
+    const text = winners.map((w, i) => `${i + 1}. ${w.name || '—'}${w.contact ? ` / ${w.contact}` : ''}${w.line_user_id ? ' / LINE已綁' : ''}`).join('\n');
+    navigator.clipboard.writeText(text);
+    alert('已複製中獎名單');
   };
 
   const handleSaveEvent = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -4109,6 +4190,15 @@ const AdminDashboard = () => {
             >
               會員管理
             </button>
+            <button
+              onClick={() => setActiveTab('draws')}
+              className={cn(
+                "w-full text-left px-4 py-3 rounded-xl font-medium transition-all",
+                activeTab === 'draws' ? "bg-orange-600 text-white shadow-lg" : "text-stone-600 hover:bg-stone-200"
+              )}
+            >
+              抽獎管理
+            </button>
             {adminRole === 'owner' && (
               <button
                 onClick={() => setActiveTab('accounts')}
@@ -4759,6 +4849,107 @@ const AdminDashboard = () => {
                         )}
                       </tbody>
                     </table>
+                  </div>
+                </>
+              );
+            })()}
+
+            {activeTab === 'draws' && (() => {
+              const poolLabel: Record<string, string> = { all_members: '全部會員', line_bound: '已綁定 LINE 會員', event_signup: '活動報名者' };
+              return (
+                <>
+                  <h2 className="text-xl font-bold mb-6">抽獎管理</h2>
+
+                  {/* 建立抽獎 */}
+                  <div className="border border-stone-100 rounded-2xl p-5 mb-8 bg-stone-50/50">
+                    <h3 className="font-bold text-stone-800 mb-4">建立新抽獎</h3>
+                    <div className="grid md:grid-cols-2 gap-3">
+                      <input value={drawForm.title} onChange={(e) => setDrawForm({ ...drawForm, title: e.target.value })} placeholder="抽獎標題（例：週年慶抽獎）" className="px-4 py-2.5 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600 bg-white" />
+                      <input value={drawForm.prize} onChange={(e) => setDrawForm({ ...drawForm, prize: e.target.value })} placeholder="獎項（例：火鍋雙人套餐）" className="px-4 py-2.5 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600 bg-white" />
+                      <select value={drawForm.pool} onChange={(e) => setDrawForm({ ...drawForm, pool: e.target.value as DrawPool })} className="px-4 py-2.5 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600 bg-white">
+                        <option value="all_members">抽獎池：全部會員</option>
+                        <option value="line_bound">抽獎池：已綁定 LINE 會員</option>
+                        <option value="event_signup">抽獎池：活動報名者</option>
+                      </select>
+                      {drawForm.pool === 'event_signup' ? (
+                        <select value={drawForm.event_id} onChange={(e) => setDrawForm({ ...drawForm, event_id: e.target.value })} className="px-4 py-2.5 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600 bg-white">
+                          <option value="">選擇活動</option>
+                          {allEvents.map(ev => <option key={ev.id} value={ev.id}>{ev.title}</option>)}
+                        </select>
+                      ) : (
+                        <input type="number" min={1} value={drawForm.winner_count} onChange={(e) => setDrawForm({ ...drawForm, winner_count: e.target.value })} placeholder="中獎人數" className="px-4 py-2.5 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600 bg-white" />
+                      )}
+                      {drawForm.pool === 'event_signup' && (
+                        <input type="number" min={1} value={drawForm.winner_count} onChange={(e) => setDrawForm({ ...drawForm, winner_count: e.target.value })} placeholder="中獎人數" className="px-4 py-2.5 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600 bg-white" />
+                      )}
+                    </div>
+                    <div className="mt-4">
+                      <button onClick={createDraw} disabled={drawBusy} className="bg-stone-900 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-stone-800 disabled:opacity-50 flex items-center gap-2">
+                        <Plus className="w-4 h-4" /> 建立抽獎
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 抽獎列表 */}
+                  <div className="space-y-4">
+                    {draws.map(d => {
+                      const winners = drawWinners[d.id] || [];
+                      const boundCount = winners.filter(w => w.line_user_id).length;
+                      return (
+                        <div key={d.id} className="border border-stone-100 rounded-2xl p-5">
+                          <div className="flex items-start justify-between gap-4 flex-wrap">
+                            <div>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <h3 className="font-bold text-stone-900">{d.title}</h3>
+                                <span className={cn('px-2 py-0.5 rounded-full text-xs font-bold', d.status === 'drawn' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700')}>
+                                  {d.status === 'drawn' ? '已開獎' : '未開獎'}
+                                </span>
+                              </div>
+                              <p className="text-sm text-stone-500 mt-1">
+                                獎項：{d.prize || '—'}　·　{poolLabel[d.pool]}{d.pool === 'event_signup' && d.event_id ? `（${allEvents.find(e => e.id === d.event_id)?.title || '活動'}）` : ''}　·　名額 {d.winner_count}
+                              </p>
+                            </div>
+                            <div className="flex gap-2 shrink-0">
+                              {d.status === 'open' ? (
+                                <button onClick={() => runDraw(d)} disabled={drawBusy} className="px-4 py-2 rounded-lg bg-orange-600 text-white text-sm font-bold hover:bg-orange-500 disabled:opacity-50">🎲 開獎</button>
+                              ) : (
+                                <button onClick={() => resetDraw(d)} className="px-3 py-2 rounded-lg border border-stone-200 text-stone-600 text-sm font-medium hover:bg-stone-50">重抽</button>
+                              )}
+                              <button onClick={() => deleteDraw(d)} className="p-2 text-stone-400 hover:text-red-600"><Trash2 className="w-4 h-4" /></button>
+                            </div>
+                          </div>
+
+                          {d.status === 'drawn' && (
+                            <div className="mt-4 border-t border-stone-50 pt-4">
+                              <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                                <p className="text-sm font-bold text-stone-700">中獎名單（{winners.length}）<span className="text-stone-400 font-normal text-xs">· 已綁定 LINE {boundCount} 位</span></p>
+                                <div className="flex gap-2">
+                                  <button onClick={() => copyWinners(d)} className="text-xs font-bold text-stone-500 hover:text-stone-800 flex items-center gap-1"><Copy className="w-3.5 h-3.5" /> 複製名單</button>
+                                  <button onClick={() => notifyDrawWinners(d)} disabled={drawBusy || boundCount === 0} className="text-xs font-bold text-[#06C755] hover:brightness-90 flex items-center gap-1 disabled:opacity-40"><MessageCircle className="w-3.5 h-3.5" /> LINE 通知中獎者</button>
+                                </div>
+                              </div>
+                              {winners.length === 0 ? (
+                                <p className="text-sm text-stone-400">抽獎池沒有符合的對象。</p>
+                              ) : (
+                                <div className="grid sm:grid-cols-2 gap-1.5">
+                                  {winners.map((w, i) => (
+                                    <div key={w.id} className="flex items-center gap-2 text-sm bg-stone-50 rounded-lg px-3 py-2">
+                                      <span className="text-stone-400 w-5">{i + 1}.</span>
+                                      <span className="font-medium text-stone-800 truncate">{w.name || '—'}</span>
+                                      {w.contact && <span className="text-stone-400 text-xs truncate">{w.contact}</span>}
+                                      {w.line_user_id && <span className="text-[#06C755] text-xs shrink-0">LINE{w.notified ? '·已通知' : ''}</span>}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                    {draws.length === 0 && (
+                      <div className="py-12 text-center text-stone-400">目前尚無抽獎，請於上方建立。</div>
+                    )}
                   </div>
                 </>
               );
