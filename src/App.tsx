@@ -1795,6 +1795,13 @@ const MemberCenter = () => {
       setLineMsg('LINE 綁定成功！之後即可透過官方帳號收到通知。');
       window.history.replaceState({}, '', '/member');
     }
+    // 登入過期 / 登出 → 自動導回會員登入頁
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT' || (event === 'INITIAL_SESSION' && !session)) {
+        navigate('/member/login');
+      }
+    });
+    return () => subscription.unsubscribe();
   }, []);
 
   const bindLine = () => {
@@ -1812,6 +1819,8 @@ const MemberCenter = () => {
 
   const unbindLine = async () => {
     if (!window.confirm('確定要解除 LINE 綁定嗎？解除後將無法透過官方帳號收到專屬通知。')) return;
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) { navigate('/member/login'); return; }
     const { error } = await supabase.functions.invoke('line-bind', { body: { action: 'unbind' } });
     if (error) { alert('解除失敗，請稍後再試'); return; }
     setLineMsg('');
@@ -3118,6 +3127,16 @@ const AdminDashboard = () => {
     fetchAllPartners();
   }, [activeTab]);
 
+  // 登入過期 / 登出 → 自動導回登入頁（避免停在後台卻無法操作）
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT' || (event === 'INITIAL_SESSION' && !session)) {
+        navigate('/login');
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
   const fetchAllEvents = async () => {
     const { data } = await supabase.from('events').select('id, title').order('created_at', { ascending: false });
     if (data) setAllEvents(data as any);
@@ -3263,6 +3282,9 @@ const AdminDashboard = () => {
     if (!msg) { alert('請輸入訊息內容'); return; }
     if (pushRecipientCount === 0) { alert('目前沒有符合條件的收件對象（需已綁定 LINE 且同意行銷）'); return; }
     if (!window.confirm(`確定發送給 ${pushRecipientCount} 位「已綁定 LINE 且同意行銷」的會員嗎？\n此動作會消耗官方帳號的推播訊息額度，且無法收回。`)) return;
+    // 送出前確認登入仍有效（過期會自動刷新；刷新失敗才導回登入）
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) { alert('登入已過期，請重新登入'); navigate('/login'); return; }
     setPushSending(true);
     const { data, error } = await supabase.functions.invoke('line-push', { body: { message: msg, member_type: pushTarget } });
     setPushSending(false);
