@@ -9,9 +9,6 @@ const admin = createClient(
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
 );
 
-const LINE_LOGIN_CHANNEL_ID = Deno.env.get('LINE_LOGIN_CHANNEL_ID')!;
-const LINE_LOGIN_CHANNEL_SECRET = Deno.env.get('LINE_LOGIN_CHANNEL_SECRET')!;
-
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -22,6 +19,10 @@ const json = (body: unknown, status = 200) =>
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   if (req.method !== 'POST') return json({ error: 'method not allowed' }, 405);
+
+  // 每次請求讀取（避免 warm isolate 快取舊值）
+  const LINE_LOGIN_CHANNEL_ID = Deno.env.get('LINE_LOGIN_CHANNEL_ID') || '';
+  const LINE_LOGIN_CHANNEL_SECRET = Deno.env.get('LINE_LOGIN_CHANNEL_SECRET') || '';
 
   try {
     // 1) 驗證呼叫者（必須是已登入會員）
@@ -39,6 +40,9 @@ Deno.serve(async (req) => {
     }
 
     if (!code || !redirect_uri) return json({ error: '缺少 code 或 redirect_uri' }, 400);
+    if (!LINE_LOGIN_CHANNEL_ID || !LINE_LOGIN_CHANNEL_SECRET) {
+      return json({ error: '伺服器未設定 LINE 金鑰', detail: { hasId: !!LINE_LOGIN_CHANNEL_ID, hasSecret: !!LINE_LOGIN_CHANNEL_SECRET } }, 500);
+    }
 
     // 2) 用授權碼換 LINE token
     const tokenRes = await fetch('https://api.line.me/oauth2/v2.1/token', {
@@ -54,13 +58,7 @@ Deno.serve(async (req) => {
     });
     const tokenData = await tokenRes.json();
     if (!tokenRes.ok || !tokenData.access_token) {
-      console.error('LINE token exchange failed', {
-        status: tokenRes.status,
-        hasChannelId: !!LINE_LOGIN_CHANNEL_ID,
-        hasSecret: !!LINE_LOGIN_CHANNEL_SECRET,
-        redirect_uri,
-        lineError: tokenData,
-      });
+      console.error('LINE token exchange failed', { status: tokenRes.status, redirect_uri, lineError: tokenData });
       return json({ error: 'LINE 授權失敗', detail: tokenData }, 400);
     }
 
@@ -84,10 +82,7 @@ Deno.serve(async (req) => {
     // 5) 寫入綁定（service_role 可通過欄位保護觸發器）
     const { error: updErr } = await admin
       .from('members')
-      .update({
-        line_user_id: lineUserId,
-        avatar_url: profile.pictureUrl || undefined,
-      })
+      .update({ line_user_id: lineUserId, avatar_url: profile.pictureUrl || undefined })
       .eq('id', user.id);
     if (updErr) return json({ error: updErr.message }, 400);
 
