@@ -39,7 +39,9 @@ import {
   Building2,
   Mail,
   CheckCircle2,
-  ShieldCheck
+  ShieldCheck,
+  MessageCircle,
+  Unlink
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import ReactMarkdown from 'react-markdown';
@@ -101,6 +103,9 @@ const MEMBER_TYPES: { value: MemberType; label: string; emoji: string; badge: st
 ];
 const memberTypeLabel = (t: string) => MEMBER_TYPES.find((m) => m.value === t)?.label || t;
 const memberTypeBadge = (t: string) => MEMBER_TYPES.find((m) => m.value === t)?.badge || 'bg-stone-100 text-stone-600';
+
+// LINE Login channel ID（非機密，可放前端；可用環境變數覆寫）
+const LINE_LOGIN_CHANNEL_ID = import.meta.env.VITE_LINE_LOGIN_CHANNEL_ID || '2010936799';
 
 // 活動期間顯示：時間為選填（TIME 欄位存 HH:MM:SS，取 HH:MM）
 // 同一天：2026-07-10 18:30 ~ 21:00；跨日：2026-07-01 ~ 2026-07-31
@@ -1765,6 +1770,8 @@ const MemberCenter = () => {
   const [applyForm, setApplyForm] = useState({ real_name: '', contact_phone: '', platform_links: '', follower_count: '', company_name: '', tax_id: '', note: '' });
   const [applying, setApplying] = useState(false);
 
+  const [lineMsg, setLineMsg] = useState('');
+
   const load = async () => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) { navigate('/member/login'); return; }
@@ -1781,7 +1788,35 @@ const MemberCenter = () => {
     setLoading(false);
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    const p = new URLSearchParams(window.location.search);
+    if (p.get('line') === 'ok') {
+      setLineMsg('LINE 綁定成功！之後即可透過官方帳號收到通知。');
+      window.history.replaceState({}, '', '/member');
+    }
+  }, []);
+
+  const bindLine = () => {
+    const redirectUri = `${window.location.origin}/member/line-callback`;
+    const state = Math.random().toString(36).slice(2) + Date.now().toString(36);
+    sessionStorage.setItem('line_bind_state', state);
+    const url = `https://access.line.me/oauth2/v2.1/authorize?response_type=code`
+      + `&client_id=${LINE_LOGIN_CHANNEL_ID}`
+      + `&redirect_uri=${encodeURIComponent(redirectUri)}`
+      + `&state=${state}`
+      + `&scope=${encodeURIComponent('profile openid')}`
+      + `&bot_prompt=aggressive`;
+    window.location.href = url;
+  };
+
+  const unbindLine = async () => {
+    if (!window.confirm('確定要解除 LINE 綁定嗎？解除後將無法透過官方帳號收到專屬通知。')) return;
+    const { error } = await supabase.functions.invoke('line-bind', { body: { action: 'unbind' } });
+    if (error) { alert('解除失敗，請稍後再試'); return; }
+    setLineMsg('');
+    load();
+  };
 
   const saveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1840,6 +1875,12 @@ const MemberCenter = () => {
           </button>
         </div>
 
+        {lineMsg && (
+          <div className="mb-6 p-4 rounded-2xl bg-emerald-50 border border-emerald-100 text-emerald-700 text-sm flex items-center gap-2">
+            <CheckCircle2 className="w-5 h-5 shrink-0" /> {lineMsg}
+          </div>
+        )}
+
         {/* 身分卡 */}
         <div className="bg-white rounded-3xl shadow-sm border border-stone-100 p-6 mb-6">
           <div className="flex items-center gap-4">
@@ -1853,6 +1894,37 @@ const MemberCenter = () => {
             <span className={cn('px-3 py-1 rounded-full text-xs font-bold shrink-0', memberTypeBadge(member.member_type))}>
               {memberTypeLabel(member.member_type)}
             </span>
+          </div>
+        </div>
+
+        {/* LINE 綁定 */}
+        <div className="bg-white rounded-3xl shadow-sm border border-stone-100 p-6 mb-6">
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-11 h-11 rounded-full bg-[#06C755] flex items-center justify-center shrink-0">
+                <MessageCircle className="w-6 h-6 text-white" />
+              </div>
+              <div className="min-w-0">
+                <p className="font-bold text-stone-800">綁定官方 LINE</p>
+                <p className="text-sm text-stone-400">
+                  {member.line_user_id ? '已綁定，可收到專屬優惠與抽獎通知' : '綁定後即可收到食在俱樂部的專屬通知'}
+                </p>
+              </div>
+            </div>
+            {member.line_user_id ? (
+              <div className="flex items-center gap-3 shrink-0">
+                <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5" /> 已綁定
+                </span>
+                <button onClick={unbindLine} className="text-sm text-stone-400 hover:text-red-600 flex items-center gap-1 transition-colors">
+                  <Unlink className="w-4 h-4" /> 解除
+                </button>
+              </div>
+            ) : (
+              <button onClick={bindLine} className="bg-[#06C755] text-white px-5 py-2.5 rounded-xl font-bold hover:brightness-95 transition-all flex items-center gap-2 shrink-0">
+                <MessageCircle className="w-4 h-4" /> 綁定 LINE
+              </button>
+            )}
           </div>
         </div>
 
@@ -1943,6 +2015,65 @@ const MemberCenter = () => {
             </>
           )}
         </div>
+      </div>
+    </div>
+  );
+};
+
+// ── LINE 綁定回呼 ─────────────────────────────────────────
+const LineCallback = () => {
+  const navigate = useNavigate();
+  const [err, setErr] = useState('');
+
+  useEffect(() => {
+    (async () => {
+      const p = new URLSearchParams(window.location.search);
+      const code = p.get('code');
+      const state = p.get('state');
+      if (p.get('error')) { setErr('已取消 LINE 授權'); return; }
+      const saved = sessionStorage.getItem('line_bind_state');
+      if (!code || !state || !saved || state !== saved) { setErr('驗證失敗，請重新綁定'); return; }
+      sessionStorage.removeItem('line_bind_state');
+
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { navigate('/member/login'); return; }
+
+      const redirect_uri = `${window.location.origin}/member/line-callback`;
+      const { data, error } = await supabase.functions.invoke('line-bind', { body: { code, redirect_uri } });
+      if (error) {
+        let m = '綁定失敗，請稍後再試';
+        try { const b = await (error as any).context.json(); if (b?.error) m = b.error; } catch { /* ignore */ }
+        setErr(m);
+        return;
+      }
+      if (data?.error) { setErr(data.error); return; }
+      navigate('/member?line=ok');
+    })();
+  }, []);
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-stone-50 px-4 pt-16">
+      <div className="max-w-md w-full bg-white rounded-3xl shadow-xl p-8 border border-stone-100 text-center">
+        {err ? (
+          <>
+            <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-4">
+              <X className="w-6 h-6 text-red-500" />
+            </div>
+            <p className="font-bold text-stone-800 mb-2">綁定未完成</p>
+            <p className="text-sm text-stone-500 mb-6">{err}</p>
+            <button onClick={() => navigate('/member')} className="bg-orange-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-orange-500 transition-colors">
+              返回會員中心
+            </button>
+          </>
+        ) : (
+          <>
+            <div className="w-12 h-12 rounded-full bg-[#06C755]/10 flex items-center justify-center mx-auto mb-4 animate-pulse">
+              <MessageCircle className="w-6 h-6 text-[#06C755]" />
+            </div>
+            <p className="font-bold text-stone-800">LINE 綁定處理中...</p>
+            <p className="text-sm text-stone-400 mt-1">請稍候，不要關閉此頁</p>
+          </>
+        )}
       </div>
     </div>
   );
@@ -4467,6 +4598,7 @@ const AdminDashboard = () => {
                         <tr className="border-b border-stone-100 text-stone-400 text-sm">
                           <th className="pb-3 font-medium">會員</th>
                           <th className="pb-3 font-medium">身分</th>
+                          <th className="pb-3 font-medium">LINE</th>
                           <th className="pb-3 font-medium">行銷同意</th>
                           <th className="pb-3 font-medium">註冊日</th>
                         </tr>
@@ -4481,12 +4613,13 @@ const AdminDashboard = () => {
                             <td className="py-3">
                               <span className={cn('px-2 py-0.5 rounded-full text-xs font-bold', memberTypeBadge(m.member_type))}>{memberTypeLabel(m.member_type)}</span>
                             </td>
+                            <td className="py-3 text-sm">{m.line_user_id ? <span className="text-[#06C755] font-medium">✓ 已綁</span> : <span className="text-stone-300">—</span>}</td>
                             <td className="py-3 text-sm">{m.marketing_consent ? <span className="text-emerald-600">✓ 同意</span> : <span className="text-stone-300">—</span>}</td>
                             <td className="py-3 text-sm text-stone-500">{new Date(m.created_at).toLocaleDateString('zh-TW', { timeZone: 'Asia/Taipei' })}</td>
                           </tr>
                         ))}
                         {filteredMembers.length === 0 && (
-                          <tr><td colSpan={4} className="py-12 text-center text-stone-400">目前尚無會員資料</td></tr>
+                          <tr><td colSpan={5} className="py-12 text-center text-stone-400">目前尚無會員資料</td></tr>
                         )}
                       </tbody>
                     </table>
@@ -5997,6 +6130,7 @@ export default function App() {
             <Route path="/partners" element={<PartnersPage />} />
             <Route path="/login" element={<Login />} />
             <Route path="/member/login" element={<MemberLogin />} />
+            <Route path="/member/line-callback" element={<LineCallback />} />
             <Route path="/member" element={<MemberCenter />} />
             <Route path="/admin" element={<AdminDashboard />} />
           </Routes>
