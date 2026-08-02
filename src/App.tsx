@@ -3002,6 +3002,10 @@ const AdminDashboard = () => {
   const [pushSending, setPushSending] = useState(false);
   const [pushMode, setPushMode] = useState<'text' | 'card'>('text');
   const [pushCard, setPushCard] = useState({ imageUrl: '', title: '', text: '', buttonLabel: '', buttonUrl: '' });
+  const [emailSubject, setEmailSubject] = useState('');
+  const [emailBody, setEmailBody] = useState('');
+  const [emailTarget, setEmailTarget] = useState<'all' | MemberType>('all');
+  const [emailSending, setEmailSending] = useState(false);
   const [adminRole, setAdminRole] = useState<'owner' | 'editor' | null>(null);
   const [myUserId, setMyUserId] = useState<string>('');
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
@@ -3319,6 +3323,32 @@ const AdminDashboard = () => {
     alert(`已送出：成功 ${data.sent} 位${data.failed ? `，失敗 ${data.failed} 位` : ''}`);
     setPushMessage('');
     setPushCard({ imageUrl: '', title: '', text: '', buttonLabel: '', buttonUrl: '' });
+  };
+
+  const emailRecipientCount = adminMembers.filter(m =>
+    m.email && m.marketing_consent && (emailTarget === 'all' || m.member_type === emailTarget)
+  ).length;
+
+  const handleSendEmail = async () => {
+    if (!emailSubject.trim()) { alert('請輸入主旨'); return; }
+    if (!emailBody.trim()) { alert('請輸入內容'); return; }
+    if (emailRecipientCount === 0) { alert('目前沒有符合條件的收件對象（需有 Email 且同意行銷）'); return; }
+    if (!window.confirm(`確定寄送給 ${emailRecipientCount} 位「有 Email 且同意行銷」的會員嗎？`)) return;
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) { alert('登入已過期，請重新登入'); navigate('/login'); return; }
+    setEmailSending(true);
+    const { data, error } = await supabase.functions.invoke('email-send', { body: { subject: emailSubject.trim(), body: emailBody, member_type: emailTarget } });
+    setEmailSending(false);
+    if (error) {
+      let m = '寄送失敗，請稍後再試';
+      try { const b = await (error as any).context.json(); if (b?.error) m = b.error; } catch { /* ignore */ }
+      alert(m);
+      return;
+    }
+    if (data?.error) { alert(data.error); return; }
+    alert(`已寄送：成功 ${data.sent} 封${data.failed ? `，失敗 ${data.failed} 封` : ''}`);
+    setEmailSubject('');
+    setEmailBody('');
   };
 
   const exportMembersCsv = () => {
@@ -4763,6 +4793,55 @@ const AdminDashboard = () => {
                         className="bg-[#06C755] text-white px-5 py-2.5 rounded-xl font-bold hover:brightness-95 transition-all flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         <MessageCircle className="w-4 h-4" /> {pushSending ? '發送中…' : '發送推播'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Email 行銷群發 */}
+                  <div className="mb-8 border border-stone-100 rounded-2xl p-5 bg-stone-50/50">
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="w-7 h-7 rounded-full bg-orange-600 flex items-center justify-center">
+                        <Mail className="w-4 h-4 text-white" />
+                      </div>
+                      <h3 className="font-bold text-stone-800">發送 Email 行銷信</h3>
+                    </div>
+                    <p className="text-xs text-stone-400 mb-4">只會寄給「有 Email 且同意行銷」的會員，信末自動附退訂（會員中心關閉）連結。</p>
+
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      {([['all', '全部'], ...MEMBER_TYPES.map(t => [t.value, t.label] as [string, string])] as [string, string][]).map(([val, label]) => (
+                        <button
+                          key={val}
+                          onClick={() => setEmailTarget(val as any)}
+                          className={cn('px-3 py-1.5 rounded-full text-sm font-medium transition-colors',
+                            emailTarget === val ? 'bg-orange-600 text-white' : 'bg-white text-stone-600 border border-stone-200 hover:bg-stone-50')}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+
+                    <input
+                      value={emailSubject}
+                      onChange={(e) => setEmailSubject(e.target.value)}
+                      placeholder="信件主旨"
+                      className="w-full px-4 py-2.5 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600 bg-white mb-2"
+                    />
+                    <textarea
+                      value={emailBody}
+                      onChange={(e) => setEmailBody(e.target.value)}
+                      rows={5}
+                      placeholder="信件內容（純文字，換行會保留；網址會自動變連結）"
+                      className="w-full px-4 py-2.5 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600 bg-white"
+                    />
+
+                    <div className="flex items-center justify-between mt-3 flex-wrap gap-2">
+                      <p className="text-sm text-stone-500">預計寄送 <span className="font-bold text-stone-800">{emailRecipientCount}</span> 位會員</p>
+                      <button
+                        onClick={handleSendEmail}
+                        disabled={emailSending || emailRecipientCount === 0 || !emailSubject.trim() || !emailBody.trim()}
+                        className="bg-orange-600 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-orange-500 transition-all flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        <Mail className="w-4 h-4" /> {emailSending ? '寄送中…' : '寄送 Email'}
                       </button>
                     </div>
                   </div>
