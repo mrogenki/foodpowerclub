@@ -2984,6 +2984,9 @@ const AdminDashboard = () => {
   const [adminMembers, setAdminMembers] = useState<Member[]>([]);
   const [memberApplications, setMemberApplications] = useState<MemberRoleApplication[]>([]);
   const [memberTypeFilter, setMemberTypeFilter] = useState<'all' | MemberType>('all');
+  const [pushMessage, setPushMessage] = useState('');
+  const [pushTarget, setPushTarget] = useState<'all' | MemberType>('all');
+  const [pushSending, setPushSending] = useState(false);
   const [adminRole, setAdminRole] = useState<'owner' | 'editor' | null>(null);
   const [myUserId, setMyUserId] = useState<string>('');
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
@@ -3249,6 +3252,29 @@ const AdminDashboard = () => {
     const { error } = await supabase.rpc('member_review_application', { app_id: appId, approve, p_review_note: note || null });
     if (error) { alert(`審核失敗: ${error.message}`); return; }
     fetchData();
+  };
+
+  const pushRecipientCount = adminMembers.filter(m =>
+    m.line_user_id && m.marketing_consent && (pushTarget === 'all' || m.member_type === pushTarget)
+  ).length;
+
+  const handleSendLinePush = async () => {
+    const msg = pushMessage.trim();
+    if (!msg) { alert('請輸入訊息內容'); return; }
+    if (pushRecipientCount === 0) { alert('目前沒有符合條件的收件對象（需已綁定 LINE 且同意行銷）'); return; }
+    if (!window.confirm(`確定發送給 ${pushRecipientCount} 位「已綁定 LINE 且同意行銷」的會員嗎？\n此動作會消耗官方帳號的推播訊息額度，且無法收回。`)) return;
+    setPushSending(true);
+    const { data, error } = await supabase.functions.invoke('line-push', { body: { message: msg, member_type: pushTarget } });
+    setPushSending(false);
+    if (error) {
+      let m = '發送失敗，請稍後再試';
+      try { const b = await (error as any).context.json(); if (b?.error) m = b.error; } catch { /* ignore */ }
+      alert(m);
+      return;
+    }
+    if (data?.error) { alert(data.error); return; }
+    alert(`已送出：成功 ${data.sent} 位${data.failed ? `，失敗 ${data.failed} 位` : ''}`);
+    setPushMessage('');
   };
 
   const exportMembersCsv = () => {
@@ -4539,6 +4565,53 @@ const AdminDashboard = () => {
                     <button onClick={exportMembersCsv} className="flex items-center gap-2 border border-stone-200 text-stone-600 px-4 py-2 rounded-lg text-sm font-medium hover:bg-stone-50">
                       <Download className="w-4 h-4" /> 匯出 CSV
                     </button>
+                  </div>
+
+                  {/* LINE 推播 */}
+                  <div className="mb-8 border border-stone-100 rounded-2xl p-5 bg-stone-50/50">
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="w-7 h-7 rounded-full bg-[#06C755] flex items-center justify-center">
+                        <MessageCircle className="w-4 h-4 text-white" />
+                      </div>
+                      <h3 className="font-bold text-stone-800">發送 LINE 行銷通知</h3>
+                    </div>
+                    <p className="text-xs text-stone-400 mb-4">只會發給「已綁定 LINE 且同意行銷」的會員，會消耗官方帳號推播額度。</p>
+
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      {([['all', '全部'], ...MEMBER_TYPES.map(t => [t.value, t.label] as [string, string])] as [string, string][]).map(([val, label]) => (
+                        <button
+                          key={val}
+                          onClick={() => setPushTarget(val as any)}
+                          className={cn('px-3 py-1.5 rounded-full text-sm font-medium transition-colors',
+                            pushTarget === val ? 'bg-orange-600 text-white' : 'bg-white text-stone-600 border border-stone-200 hover:bg-stone-50')}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+
+                    <textarea
+                      value={pushMessage}
+                      onChange={(e) => setPushMessage(e.target.value)}
+                      rows={3}
+                      maxLength={5000}
+                      placeholder="輸入要推播的訊息內容…"
+                      className="w-full px-4 py-2.5 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600 bg-white"
+                    />
+
+                    <div className="flex items-center justify-between mt-3 flex-wrap gap-2">
+                      <p className="text-sm text-stone-500">
+                        預計送達 <span className="font-bold text-stone-800">{pushRecipientCount}</span> 位會員
+                        <span className="text-stone-400 text-xs">（{pushMessage.length}/5000 字）</span>
+                      </p>
+                      <button
+                        onClick={handleSendLinePush}
+                        disabled={pushSending || pushRecipientCount === 0 || !pushMessage.trim()}
+                        className="bg-[#06C755] text-white px-5 py-2.5 rounded-xl font-bold hover:brightness-95 transition-all flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        <MessageCircle className="w-4 h-4" /> {pushSending ? '發送中…' : '發送推播'}
+                      </button>
+                    </div>
                   </div>
 
                   {/* 升級申請審核 */}
