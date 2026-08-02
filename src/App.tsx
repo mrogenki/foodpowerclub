@@ -2024,7 +2024,6 @@ const MemberCenter = () => {
 const LineCallback = () => {
   const navigate = useNavigate();
   const [err, setErr] = useState('');
-  const [detail, setDetail] = useState('');
 
   useEffect(() => {
     (async () => {
@@ -2043,15 +2042,11 @@ const LineCallback = () => {
       const { data, error } = await supabase.functions.invoke('line-bind', { body: { code, redirect_uri } });
       if (error) {
         let m = '綁定失敗，請稍後再試';
-        try {
-          const b = await (error as any).context.json();
-          if (b?.error) m = b.error;
-          if (b?.detail) setDetail(`${redirect_uri}\n${JSON.stringify(b.detail)}`);
-        } catch { /* ignore */ }
+        try { const b = await (error as any).context.json(); if (b?.error) m = b.error; } catch { /* ignore */ }
         setErr(m);
         return;
       }
-      if (data?.error) { setErr(data.error); if (data?.detail) setDetail(JSON.stringify(data.detail)); return; }
+      if (data?.error) { setErr(data.error); return; }
       navigate('/member?line=ok');
     })();
   }, []);
@@ -2065,10 +2060,7 @@ const LineCallback = () => {
               <X className="w-6 h-6 text-red-500" />
             </div>
             <p className="font-bold text-stone-800 mb-2">綁定未完成</p>
-            <p className="text-sm text-stone-500 mb-4">{err}</p>
-            {detail && (
-              <pre className="text-left text-[11px] leading-snug bg-stone-50 border border-stone-100 rounded-xl p-3 mb-4 overflow-x-auto whitespace-pre-wrap break-all text-stone-500">{detail}</pre>
-            )}
+            <p className="text-sm text-stone-500 mb-6">{err}</p>
             <button onClick={() => navigate('/member')} className="bg-orange-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-orange-500 transition-colors">
               返回會員中心
             </button>
