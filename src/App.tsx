@@ -2996,6 +2996,8 @@ const AdminDashboard = () => {
   const [pushMessage, setPushMessage] = useState('');
   const [pushTarget, setPushTarget] = useState<'all' | MemberType>('all');
   const [pushSending, setPushSending] = useState(false);
+  const [pushMode, setPushMode] = useState<'text' | 'card'>('text');
+  const [pushCard, setPushCard] = useState({ imageUrl: '', title: '', text: '', buttonLabel: '', buttonUrl: '' });
   const [adminRole, setAdminRole] = useState<'owner' | 'editor' | null>(null);
   const [myUserId, setMyUserId] = useState<string>('');
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
@@ -3278,15 +3280,22 @@ const AdminDashboard = () => {
   ).length;
 
   const handleSendLinePush = async () => {
-    const msg = pushMessage.trim();
-    if (!msg) { alert('請輸入訊息內容'); return; }
+    let payload: Record<string, unknown>;
+    if (pushMode === 'card') {
+      if (!pushCard.title.trim()) { alert('請輸入卡片標題'); return; }
+      if (!pushCard.buttonLabel.trim() || !pushCard.buttonUrl.trim()) { alert('請填寫按鈕文字與連結'); return; }
+      payload = { mode: 'card', member_type: pushTarget, card: pushCard };
+    } else {
+      if (!pushMessage.trim()) { alert('請輸入訊息內容'); return; }
+      payload = { mode: 'text', message: pushMessage.trim(), member_type: pushTarget };
+    }
     if (pushRecipientCount === 0) { alert('目前沒有符合條件的收件對象（需已綁定 LINE 且同意行銷）'); return; }
     if (!window.confirm(`確定發送給 ${pushRecipientCount} 位「已綁定 LINE 且同意行銷」的會員嗎？\n此動作會消耗官方帳號的推播訊息額度，且無法收回。`)) return;
     // 送出前確認登入仍有效（過期會自動刷新；刷新失敗才導回登入）
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) { alert('登入已過期，請重新登入'); navigate('/login'); return; }
     setPushSending(true);
-    const { data, error } = await supabase.functions.invoke('line-push', { body: { message: msg, member_type: pushTarget } });
+    const { data, error } = await supabase.functions.invoke('line-push', { body: payload });
     setPushSending(false);
     if (error) {
       let m = '發送失敗，請稍後再試';
@@ -3297,6 +3306,7 @@ const AdminDashboard = () => {
     if (data?.error) { alert(data.error); return; }
     alert(`已送出：成功 ${data.sent} 位${data.failed ? `，失敗 ${data.failed} 位` : ''}`);
     setPushMessage('');
+    setPushCard({ imageUrl: '', title: '', text: '', buttonLabel: '', buttonUrl: '' });
   };
 
   const exportMembersCsv = () => {
@@ -4612,23 +4622,49 @@ const AdminDashboard = () => {
                       ))}
                     </div>
 
-                    <textarea
-                      value={pushMessage}
-                      onChange={(e) => setPushMessage(e.target.value)}
-                      rows={3}
-                      maxLength={5000}
-                      placeholder="輸入要推播的訊息內容…"
-                      className="w-full px-4 py-2.5 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600 bg-white"
-                    />
+                    {/* 訊息格式切換 */}
+                    <div className="inline-flex rounded-xl border border-stone-200 bg-white p-1 mb-3">
+                      {([['text', '純文字'], ['card', '圖文卡片']] as [string, string][]).map(([val, label]) => (
+                        <button
+                          key={val}
+                          onClick={() => setPushMode(val as any)}
+                          className={cn('px-4 py-1.5 rounded-lg text-sm font-medium transition-colors',
+                            pushMode === val ? 'bg-orange-600 text-white' : 'text-stone-500 hover:bg-stone-50')}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+
+                    {pushMode === 'text' ? (
+                      <textarea
+                        value={pushMessage}
+                        onChange={(e) => setPushMessage(e.target.value)}
+                        rows={3}
+                        maxLength={5000}
+                        placeholder="輸入要推播的訊息內容…"
+                        className="w-full px-4 py-2.5 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600 bg-white"
+                      />
+                    ) : (
+                      <div className="space-y-2 bg-white border border-stone-200 rounded-xl p-3">
+                        <input value={pushCard.imageUrl} onChange={(e) => setPushCard({ ...pushCard, imageUrl: e.target.value })} placeholder="圖片網址（https，選填，建議 1:1.51 橫幅）" className="w-full px-3 py-2 rounded-lg border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600 text-sm" />
+                        <input value={pushCard.title} onChange={(e) => setPushCard({ ...pushCard, title: e.target.value })} maxLength={40} placeholder="標題（必填，上限 40 字）" className="w-full px-3 py-2 rounded-lg border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600 text-sm" />
+                        <input value={pushCard.text} onChange={(e) => setPushCard({ ...pushCard, text: e.target.value })} maxLength={60} placeholder="說明文字（有圖上限 60 字）" className="w-full px-3 py-2 rounded-lg border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600 text-sm" />
+                        <div className="grid grid-cols-2 gap-2">
+                          <input value={pushCard.buttonLabel} onChange={(e) => setPushCard({ ...pushCard, buttonLabel: e.target.value })} maxLength={20} placeholder="按鈕文字（必填）" className="px-3 py-2 rounded-lg border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600 text-sm" />
+                          <input value={pushCard.buttonUrl} onChange={(e) => setPushCard({ ...pushCard, buttonUrl: e.target.value })} placeholder="按鈕連結（必填，https://）" className="px-3 py-2 rounded-lg border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600 text-sm" />
+                        </div>
+                      </div>
+                    )}
 
                     <div className="flex items-center justify-between mt-3 flex-wrap gap-2">
                       <p className="text-sm text-stone-500">
                         預計送達 <span className="font-bold text-stone-800">{pushRecipientCount}</span> 位會員
-                        <span className="text-stone-400 text-xs">（{pushMessage.length}/5000 字）</span>
+                        {pushMode === 'text' && <span className="text-stone-400 text-xs">（{pushMessage.length}/5000 字）</span>}
                       </p>
                       <button
                         onClick={handleSendLinePush}
-                        disabled={pushSending || pushRecipientCount === 0 || !pushMessage.trim()}
+                        disabled={pushSending || pushRecipientCount === 0 || (pushMode === 'text' ? !pushMessage.trim() : (!pushCard.title.trim() || !pushCard.buttonUrl.trim()))}
                         className="bg-[#06C755] text-white px-5 py-2.5 rounded-xl font-bold hover:brightness-95 transition-all flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         <MessageCircle className="w-4 h-4" /> {pushSending ? '發送中…' : '發送推播'}
