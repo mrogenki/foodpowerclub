@@ -30,6 +30,8 @@ export interface MemberRoleApplication {
   follower_count: string | null; // 創作者
   company_name: string | null;   // 企業
   tax_id: string | null;         // 企業
+  employee_count: string | null; // 企業：員工數
+  company_address: string | null;// 企業：公司地址
   note: string | null;
   reviewed_by: string | null;
   reviewed_at: string | null;

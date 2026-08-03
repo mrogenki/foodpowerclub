@@ -1767,7 +1767,7 @@ const MemberCenter = () => {
   // 升級申請表單
   const [showApplyForm, setShowApplyForm] = useState(false);
   const [applyType, setApplyType] = useState<'creator' | 'business'>('creator');
-  const [applyForm, setApplyForm] = useState({ real_name: '', contact_phone: '', platform_links: '', follower_count: '', company_name: '', tax_id: '', note: '' });
+  const [applyForm, setApplyForm] = useState({ real_name: '', contact_phone: '', platform_links: '', follower_count: '', company_name: '', tax_id: '', employee_count: '', company_address: '', note: '' });
   const [applying, setApplying] = useState(false);
 
   const [lineMsg, setLineMsg] = useState('');
@@ -1854,6 +1854,8 @@ const MemberCenter = () => {
       follower_count: applyType === 'creator' ? (applyForm.follower_count || null) : null,
       company_name: applyType === 'business' ? (applyForm.company_name || null) : null,
       tax_id: applyType === 'business' ? (applyForm.tax_id || null) : null,
+      employee_count: applyType === 'business' ? (applyForm.employee_count || null) : null,
+      company_address: applyType === 'business' ? (applyForm.company_address || null) : null,
       note: applyForm.note || null,
     };
     const { error } = await supabase.from('member_role_applications').insert([payload]);
@@ -2012,6 +2014,8 @@ const MemberCenter = () => {
                     <>
                       <input value={applyForm.company_name} onChange={(e) => setApplyForm({ ...applyForm, company_name: e.target.value })} className="w-full px-4 py-2.5 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" placeholder="公司 / 團體名稱" required />
                       <input value={applyForm.tax_id} onChange={(e) => setApplyForm({ ...applyForm, tax_id: e.target.value })} className="w-full px-4 py-2.5 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" placeholder="統一編號（選填）" />
+                      <input value={applyForm.employee_count} onChange={(e) => setApplyForm({ ...applyForm, employee_count: e.target.value })} className="w-full px-4 py-2.5 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" placeholder="員工數（例：50 人 / 50-100 人）" />
+                      <input value={applyForm.company_address} onChange={(e) => setApplyForm({ ...applyForm, company_address: e.target.value })} className="w-full px-4 py-2.5 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" placeholder="公司地址" />
                     </>
                   )}
                   <textarea value={applyForm.note} onChange={(e) => setApplyForm({ ...applyForm, note: e.target.value })} className="w-full px-4 py-2.5 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600 h-20" placeholder="補充說明（選填）" />
@@ -5312,6 +5316,8 @@ const AdminDashboard = () => {
                               <>
                                 <Row label="公司/團體" value={a.company_name} />
                                 <Row label="統一編號" value={a.tax_id} />
+                                <Row label="員工數" value={a.employee_count} />
+                                <Row label="公司地址" value={a.company_address} />
                               </>
                             )}
                             <Row label="備註" value={a.note} />
