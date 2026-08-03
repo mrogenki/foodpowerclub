@@ -40,11 +40,13 @@ Deno.serve(async (req) => {
     const { data: adminRow } = await admin.from('admin_users').select('role').eq('user_id', user.id).maybeSingle();
     if (!adminRow) return json({ error: '僅管理員可發送' }, 403);
 
-    const { subject, body, member_type } = await req.json();
+    const { subject, body, member_type, image_url } = await req.json();
     const subj = (subject || '').toString().trim();
     const content = (body || '').toString().trim();
+    const imageUrl = (image_url || '').toString().trim();
     if (!subj) return json({ error: '主旨不可空白' }, 400);
     if (!content) return json({ error: '內容不可空白' }, 400);
+    if (imageUrl && !/^https:\/\//.test(imageUrl)) return json({ error: '圖片網址需為 https' }, 400);
     if (!RESEND_API_KEY) {
       console.error('RESEND_API_KEY missing');
       return json({ error: '伺服器尚未設定 Resend 金鑰' }, 500);
@@ -68,9 +70,12 @@ Deno.serve(async (req) => {
       `<hr style="border:none;border-top:1px solid #eee;margin:24px 0" />` +
       `<p style="font-size:12px;color:#999;line-height:1.6">您會收到這封信，是因為您在食在俱樂部同意接收行銷資訊。` +
       `不想再收到，請至 <a href="${MEMBER_URL}" style="color:#ea580c">會員中心</a> 關閉「接收行銷資訊」。</p>`;
+    const imageTag = imageUrl
+      ? `<img src="${imageUrl}" alt="" style="width:100%;max-width:600px;border-radius:10px;margin-bottom:20px;display:block" />`
+      : '';
     const html =
       `<div style="font-family:-apple-system,'PingFang TC','Microsoft JhengHei',sans-serif;font-size:15px;line-height:1.8;color:#333;max-width:600px;margin:0 auto">` +
-      `<div>${escapeHtml(content).replace(/\n/g, '<br />')}</div>${footer}</div>`;
+      `${imageTag}<div>${escapeHtml(content).replace(/\n/g, '<br />')}</div>${footer}</div>`;
 
     let sent = 0, failed = 0;
     const errors: string[] = [];
@@ -96,6 +101,19 @@ Deno.serve(async (req) => {
         if (errors.length < 3) errors.push(`${res.status}: ${t}`);
       }
     }
+
+    await admin.from('message_campaigns').insert({
+      channel: 'email',
+      status: 'sent',
+      member_type: member_type || 'all',
+      title: subj,
+      payload: { subject: subj, body: content, image_url: imageUrl || null },
+      recipient_count: emails.length,
+      sent_count: sent,
+      failed_count: failed,
+      sent_at: new Date().toISOString(),
+      created_by: user.id,
+    });
 
     return json({ ok: true, sent, failed, errors });
   } catch (e) {

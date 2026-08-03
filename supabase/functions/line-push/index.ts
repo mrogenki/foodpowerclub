@@ -103,6 +103,23 @@ Deno.serve(async (req) => {
       }
     }
 
+    // 記錄群發（指定名單=中獎通知，不列入行銷發送紀錄）
+    if (!Array.isArray(line_user_ids) || line_user_ids.length === 0) {
+      const title = mode === 'card' ? (card?.title || '圖文卡片') : (message || '').toString().slice(0, 60);
+      await admin.from('message_campaigns').insert({
+        channel: 'line',
+        status: 'sent',
+        member_type: member_type || 'all',
+        title,
+        payload: mode === 'card' ? { mode: 'card', card } : { mode: 'text', message },
+        recipient_count: ids.length,
+        sent_count: sent,
+        failed_count: failed,
+        sent_at: new Date().toISOString(),
+        created_by: user.id,
+      });
+    }
+
     return json({ ok: true, sent, failed, errors });
   } catch (e) {
     console.error('line-push error', e);

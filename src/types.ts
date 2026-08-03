@@ -124,6 +124,23 @@ export interface DrawWinner {
   created_at: string;
 }
 
+// ── 發送紀錄（LINE / Email） ──────────────────────────────
+export interface MessageCampaign {
+  id: string;
+  channel: 'line' | 'email';
+  status: 'scheduled' | 'sending' | 'sent' | 'failed' | 'canceled';
+  member_type: string;
+  title: string | null;
+  payload: any;
+  recipient_count: number;
+  sent_count: number;
+  failed_count: number;
+  scheduled_at: string | null;
+  sent_at: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+
 export interface Location {
   id: string;
   name: string;

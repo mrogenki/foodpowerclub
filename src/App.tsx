@@ -66,7 +66,7 @@ const queryClient = new QueryClient({
   },
 });
 import { cn } from './lib/utils';
-import type { Event, EventCategory, Brand, Partner, Location, Review, KOLReview, Promotion, SignupSettings, SignupEntry, AdminUser, Member, MemberType, MemberRoleApplication, Draw, DrawWinner, DrawPool } from './types';
+import type { Event, EventCategory, Brand, Partner, Location, Review, KOLReview, Promotion, SignupSettings, SignupEntry, AdminUser, Member, MemberType, MemberRoleApplication, Draw, DrawWinner, DrawPool, MessageCampaign } from './types';
 
 import { APIProvider, Map, AdvancedMarker, Pin, InfoWindow, useMapsLibrary, useMap } from '@vis.gl/react-google-maps';
 
@@ -3004,8 +3004,10 @@ const AdminDashboard = () => {
   const [pushCard, setPushCard] = useState({ imageUrl: '', title: '', text: '', buttonLabel: '', buttonUrl: '' });
   const [emailSubject, setEmailSubject] = useState('');
   const [emailBody, setEmailBody] = useState('');
+  const [emailImage, setEmailImage] = useState('');
   const [emailTarget, setEmailTarget] = useState<'all' | MemberType>('all');
   const [emailSending, setEmailSending] = useState(false);
+  const [campaigns, setCampaigns] = useState<MessageCampaign[]>([]);
   const [adminRole, setAdminRole] = useState<'owner' | 'editor' | null>(null);
   const [myUserId, setMyUserId] = useState<string>('');
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
@@ -3269,6 +3271,9 @@ const AdminDashboard = () => {
         const { data: appsData } = await supabase.from('member_role_applications')
           .select('*').order('created_at', { ascending: false });
         if (appsData) setMemberApplications(appsData as any);
+        const { data: campData } = await supabase.from('message_campaigns')
+          .select('*').order('created_at', { ascending: false }).limit(30);
+        if (campData) setCampaigns(campData as any);
       } else if (activeTab === 'draws') {
         const { data: drawsData, error } = await supabase.from('draws').select('*').order('created_at', { ascending: false });
         if (error) throw error;
@@ -3323,6 +3328,7 @@ const AdminDashboard = () => {
     alert(`已送出：成功 ${data.sent} 位${data.failed ? `，失敗 ${data.failed} 位` : ''}`);
     setPushMessage('');
     setPushCard({ imageUrl: '', title: '', text: '', buttonLabel: '', buttonUrl: '' });
+    fetchData();
   };
 
   const emailRecipientCount = adminMembers.filter(m =>
@@ -3337,7 +3343,7 @@ const AdminDashboard = () => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) { alert('登入已過期，請重新登入'); navigate('/login'); return; }
     setEmailSending(true);
-    const { data, error } = await supabase.functions.invoke('email-send', { body: { subject: emailSubject.trim(), body: emailBody, member_type: emailTarget } });
+    const { data, error } = await supabase.functions.invoke('email-send', { body: { subject: emailSubject.trim(), body: emailBody, image_url: emailImage, member_type: emailTarget } });
     setEmailSending(false);
     if (error) {
       let m = '寄送失敗，請稍後再試';
@@ -3349,6 +3355,8 @@ const AdminDashboard = () => {
     alert(`已寄送：成功 ${data.sent} 封${data.failed ? `，失敗 ${data.failed} 封` : ''}`);
     setEmailSubject('');
     setEmailBody('');
+    setEmailImage('');
+    fetchData();
   };
 
   const exportMembersCsv = () => {
@@ -4826,6 +4834,14 @@ const AdminDashboard = () => {
                       placeholder="信件主旨"
                       className="w-full px-4 py-2.5 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600 bg-white mb-2"
                     />
+                    <div className="bg-white border border-stone-200 rounded-xl p-3 mb-2">
+                      <ImageUpload
+                        label="頂部圖片（選填，會顯示在信件最上方）"
+                        value={emailImage}
+                        onChange={setEmailImage}
+                        folder="email"
+                      />
+                    </div>
                     <textarea
                       value={emailBody}
                       onChange={(e) => setEmailBody(e.target.value)}
@@ -4879,6 +4895,26 @@ const AdminDashboard = () => {
                             </div>
                           );
                         })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 發送紀錄 */}
+                  {campaigns.length > 0 && (
+                    <div className="mb-8">
+                      <h3 className="text-sm font-bold text-stone-800 mb-3">發送紀錄 <span className="text-stone-400 font-normal text-xs">（最近 30 筆）</span></h3>
+                      <div className="border border-stone-100 rounded-2xl divide-y divide-stone-50 overflow-hidden">
+                        {campaigns.map(c => (
+                          <div key={c.id} className="flex items-center gap-3 px-4 py-3 flex-wrap">
+                            <span className={cn('px-2 py-0.5 rounded-full text-xs font-bold shrink-0', c.channel === 'line' ? 'bg-[#06C755]/10 text-[#06C755]' : 'bg-orange-100 text-orange-700')}>
+                              {c.channel === 'line' ? 'LINE' : 'Email'}
+                            </span>
+                            <span className="font-medium text-stone-800 truncate flex-1 min-w-[120px]">{c.title || '(無標題)'}</span>
+                            <span className="text-xs text-stone-400 shrink-0">{c.member_type === 'all' ? '全部' : memberTypeLabel(c.member_type)}</span>
+                            <span className="text-xs text-stone-500 shrink-0">成功 {c.sent_count}{c.failed_count ? ` · 失敗 ${c.failed_count}` : ''} / {c.recipient_count}</span>
+                            <span className="text-xs text-stone-400 shrink-0">{new Date(c.sent_at || c.created_at).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   )}
