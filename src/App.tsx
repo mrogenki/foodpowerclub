@@ -41,7 +41,9 @@ import {
   CheckCircle2,
   ShieldCheck,
   MessageCircle,
-  Unlink
+  Unlink,
+  Gift,
+  Flame
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import ReactMarkdown from 'react-markdown';
@@ -370,6 +372,7 @@ const Navbar = () => {
             <Link to="/reviews" className="text-stone-600 hover:text-orange-600 transition-colors font-medium">開箱分享</Link>
             <Link to="/map" className="text-stone-600 hover:text-orange-600 transition-colors font-medium">美食地圖</Link>
             <Link to="/partners" className="text-stone-600 hover:text-orange-600 transition-colors font-medium">贊助夥伴</Link>
+            <Link to="/join" className="text-orange-600 hover:text-orange-700 transition-colors font-bold flex items-center gap-1">🎁 週週抽好禮</Link>
             {isAdmin && (
               <Link to="/admin" className="flex items-center gap-2 bg-stone-900 text-white px-4 py-2 rounded-full text-sm font-medium hover:bg-stone-800 transition-colors">
                 <LayoutDashboard className="w-4 h-4" />
@@ -411,6 +414,7 @@ const Navbar = () => {
               <Link to="/reviews" onClick={() => setIsOpen(false)} className="block px-3 py-4 text-base font-medium text-stone-600 border-b border-stone-100">開箱分享</Link>
               <Link to="/map" onClick={() => setIsOpen(false)} className="block px-3 py-4 text-base font-medium text-stone-600 border-b border-stone-100">美食地圖</Link>
               <Link to="/partners" onClick={() => setIsOpen(false)} className="block px-3 py-4 text-base font-medium text-stone-600 border-b border-stone-100">贊助夥伴</Link>
+              <Link to="/join" onClick={() => setIsOpen(false)} className="block px-3 py-4 text-base font-bold text-orange-600 border-b border-stone-100">🎁 週週抽好禮</Link>
               {isAdmin && (
                 <Link to="/admin" onClick={() => setIsOpen(false)} className="block px-3 py-4 text-base font-medium text-stone-800 border-b border-stone-100">管理中心</Link>
               )}
@@ -2115,6 +2119,174 @@ const LineCallback = () => {
           </>
         )}
       </div>
+    </div>
+  );
+};
+
+// ── 活動宣傳頁（加入會員好禮） ────────────────────────────
+const FESTIVAL_PRIZES: { brand: string; prize: string; winners: string }[] = [
+  { brand: '鮮乳坊', prize: '8月：乳品研究所精裝版（每週 8 份）／9–12月：鮮乳坊保久乳 6入（每週 2 份）', winners: '每週多名' },
+  { brand: '桂冠食品', prize: '好好說頓飯・美味食材箱', winners: '每週 1 名' },
+  { brand: '南僑讚岐急凍熟麵', prize: '讚岐日式精選組', winners: '每週 2 名' },
+  { brand: '金色三麥 SUNMAI', prize: '零糖值啤酒 1 箱（500ml × 12 罐）', winners: '每週 1 名' },
+  { brand: '大苑子', prize: '夏日組合限定・西瓜×3＋芒果柳丁×3', winners: '每週 1 名' },
+  { brand: '春一枝', prize: 'mini 香橙冰棒（36g×12 支／組）', winners: '每週 1 名' },
+  { brand: '隨身醉愛袋袋酒', prize: '6 入隨身醉愛袋袋酒', winners: '每週 1 名' },
+];
+
+const JOIN_POINTS: { action: string; pts: string; note?: string }[] = [
+  { action: '完成註冊', pts: '500' },
+  { action: '下載 App', pts: '100' },
+  { action: '受朋友介紹加入', pts: '100' },
+  { action: '介紹朋友加入', pts: '100', note: '每位好友 +100，最多 5 位' },
+  { action: '每天打卡', pts: '50' },
+];
+
+const JoinPage = () => {
+  const fade = (delay = 0) => ({
+    initial: { opacity: 0, y: 24 },
+    whileInView: { opacity: 1, y: 0 },
+    viewport: { once: true, margin: '-60px' },
+    transition: { duration: 0.5, delay },
+  });
+
+  return (
+    <div className="bg-stone-950">
+      {/* Hero */}
+      <section className="relative overflow-hidden pt-28 pb-20 px-4 text-center text-white">
+        <div className="absolute inset-0 bg-gradient-to-b from-red-950 via-stone-950 to-stone-950" />
+        <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-orange-600/20 rounded-full blur-3xl" />
+        <div className="relative max-w-3xl mx-auto">
+          <img src="/logo-mark-white.png" alt="食在俱樂部" className="h-10 w-auto mx-auto mb-8 opacity-90" />
+          <motion.p {...fade(0)} className="text-amber-300 font-bold tracking-[0.3em] text-sm mb-3">2026 全台餐飲品牌聯合盛典</motion.p>
+          <motion.h1 {...fade(0.05)} className="text-5xl sm:text-6xl font-black mb-4 leading-tight">
+            <span className="text-orange-500">燒肉祭</span> <span className="text-stone-500">×</span> <span className="text-amber-400">火鍋祭</span>
+          </motion.h1>
+          <motion.p {...fade(0.1)} className="text-stone-300 mb-8">吃越多・點越多・獎越大</motion.p>
+
+          <motion.div {...fade(0.15)} className="inline-flex flex-col items-center gap-1 mb-8">
+            <div className="bg-gradient-to-r from-amber-400 to-orange-500 text-stone-900 font-black text-3xl sm:text-4xl px-8 py-3 rounded-2xl shadow-2xl shadow-orange-900/50">
+              🎁 週週抽好禮
+            </div>
+            <p className="text-amber-200/90 text-sm mt-3">每週抽出 <span className="font-bold text-amber-300">7 大品牌</span> 幸運得主</p>
+          </motion.div>
+
+          <motion.div {...fade(0.2)} className="flex flex-wrap justify-center gap-4 mb-10">
+            <div className="bg-white/5 border border-orange-500/30 rounded-2xl px-6 py-4 backdrop-blur">
+              <div className="flex items-center gap-2 text-orange-400 font-bold mb-1"><Flame className="w-4 h-4" /> 燒肉祭</div>
+              <div className="text-lg font-black">2026.08.01 – 09.30</div>
+            </div>
+            <div className="bg-white/5 border border-amber-500/30 rounded-2xl px-6 py-4 backdrop-blur">
+              <div className="flex items-center gap-2 text-amber-400 font-bold mb-1">🍲 火鍋祭</div>
+              <div className="text-lg font-black">2026.10.01 – 11.30</div>
+            </div>
+          </motion.div>
+
+          <motion.div {...fade(0.25)}>
+            <Link to="/member/login" className="inline-flex items-center gap-2 bg-orange-600 hover:bg-orange-500 text-white font-bold text-lg px-8 py-4 rounded-full shadow-xl shadow-orange-900/40 transition-all hover:scale-105">
+              <Gift className="w-5 h-5" /> 立即加入會員抽好禮
+            </Link>
+            <p className="text-stone-400 text-xs mt-3">加入會員並綁定官方 LINE，即可參加每週抽獎</p>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* 加入好處 */}
+      <section className="bg-white py-20 px-4">
+        <div className="max-w-5xl mx-auto">
+          <motion.h2 {...fade()} className="text-3xl font-black text-center text-stone-900 mb-3">為什麼要加入會員？</motion.h2>
+          <motion.p {...fade(0.05)} className="text-center text-stone-500 mb-12">免費加入，好康拿不完</motion.p>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            {[
+              { icon: <Gift className="w-6 h-6" />, title: '週週抽好禮', desc: '7 大品牌聯合送，週週開獎' },
+              { icon: <MessageCircle className="w-6 h-6" />, title: '綁定 LINE 不漏接', desc: '中獎與優惠即時通知' },
+              { icon: <Ticket className="w-6 h-6" />, title: '集點享優惠', desc: '註冊、打卡、揪團拿點數' },
+              { icon: <Sparkles className="w-6 h-6" />, title: '專屬會員活動', desc: '搶先報名限定探店與優惠' },
+            ].map((b, i) => (
+              <motion.div key={i} {...fade(i * 0.05)} className="bg-stone-50 rounded-2xl p-6 border border-stone-100">
+                <div className="w-12 h-12 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center mb-4">{b.icon}</div>
+                <h3 className="font-bold text-stone-900 mb-1">{b.title}</h3>
+                <p className="text-sm text-stone-500">{b.desc}</p>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* 週週抽好禮 獎品 */}
+      <section className="bg-stone-50 py-20 px-4">
+        <div className="max-w-5xl mx-auto">
+          <motion.div {...fade()} className="text-center mb-12">
+            <span className="inline-block bg-orange-600 text-white text-xs font-bold px-3 py-1 rounded-full mb-3">週週抽好禮</span>
+            <h2 className="text-3xl font-black text-stone-900">7 大品牌・週週開獎</h2>
+          </motion.div>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {FESTIVAL_PRIZES.map((p, i) => (
+              <motion.div key={i} {...fade((i % 3) * 0.05)} className="bg-white rounded-2xl p-6 border border-stone-100 shadow-sm flex flex-col">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="font-black text-lg text-stone-900">{p.brand}</span>
+                  <span className="shrink-0 bg-amber-100 text-amber-700 text-xs font-bold px-2.5 py-1 rounded-full">{p.winners}</span>
+                </div>
+                <p className="text-sm text-stone-600 flex-grow">{p.prize}</p>
+              </motion.div>
+            ))}
+          </div>
+          <motion.p {...fade()} className="text-center text-xs text-stone-400 mt-8">主辦贈品以實物為準，主辦單位保有最終修改、變更、活動解釋及取消本活動之權利。</motion.p>
+        </div>
+      </section>
+
+      {/* 參加方式 */}
+      <section className="bg-white py-20 px-4">
+        <div className="max-w-4xl mx-auto">
+          <motion.h2 {...fade()} className="text-3xl font-black text-center text-stone-900 mb-12">三步驟參加抽獎</motion.h2>
+          <div className="grid sm:grid-cols-3 gap-6">
+            {[
+              { n: '1', title: '加入會員', desc: 'Google／Email 免費註冊' },
+              { n: '2', title: '綁定官方 LINE', desc: '會員中心一鍵綁定並加好友' },
+              { n: '3', title: '週週自動抽', desc: '中獎透過 LINE 通知你' },
+            ].map((s, i) => (
+              <motion.div key={i} {...fade(i * 0.08)} className="text-center">
+                <div className="w-14 h-14 rounded-full bg-orange-600 text-white text-2xl font-black flex items-center justify-center mx-auto mb-4">{s.n}</div>
+                <h3 className="font-bold text-stone-900 mb-1">{s.title}</h3>
+                <p className="text-sm text-stone-500">{s.desc}</p>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* APP 集點 */}
+      <section className="bg-gradient-to-b from-orange-600 to-orange-700 py-20 px-4 text-white">
+        <div className="max-w-3xl mx-auto">
+          <motion.div {...fade()} className="text-center mb-10">
+            <span className="inline-block bg-white/20 text-white text-xs font-bold px-3 py-1 rounded-full mb-3">下載 App</span>
+            <h2 className="text-3xl font-black">集點享優惠</h2>
+            <p className="text-orange-100 mt-2 text-sm">累積點數，兌換更多好康</p>
+          </motion.div>
+          <div className="space-y-3">
+            {JOIN_POINTS.map((p, i) => (
+              <motion.div key={i} {...fade(i * 0.05)} className="bg-white/10 backdrop-blur rounded-2xl px-5 py-4 flex items-center justify-between gap-4">
+                <div>
+                  <p className="font-bold">{p.action}</p>
+                  {p.note && <p className="text-xs text-orange-100/80">{p.note}</p>}
+                </div>
+                <span className="shrink-0 text-2xl font-black text-amber-300">+{p.pts}<span className="text-sm font-bold text-orange-100"> 點</span></span>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* 最終 CTA */}
+      <section className="bg-stone-950 py-20 px-4 text-center text-white">
+        <motion.div {...fade()} className="max-w-xl mx-auto">
+          <h2 className="text-3xl font-black mb-3">現在加入，週週有機會中獎 🎉</h2>
+          <p className="text-stone-400 mb-8">免費加入食在俱樂部，綁定官方 LINE 就能參加</p>
+          <Link to="/member/login" className="inline-flex items-center gap-2 bg-orange-600 hover:bg-orange-500 text-white font-bold text-lg px-8 py-4 rounded-full shadow-xl transition-all hover:scale-105">
+            <Gift className="w-5 h-5" /> 免費加入會員
+          </Link>
+        </motion.div>
+      </section>
     </div>
   );
 };
@@ -6769,6 +6941,7 @@ export default function App() {
             <Route path="/reviews" element={<KOLReviewsPage />} />
             <Route path="/map" element={<MapPage />} />
             <Route path="/partners" element={<PartnersPage />} />
+            <Route path="/join" element={<JoinPage />} />
             <Route path="/login" element={<Login />} />
             <Route path="/member/login" element={<MemberLogin />} />
             <Route path="/member/line-callback" element={<LineCallback />} />
