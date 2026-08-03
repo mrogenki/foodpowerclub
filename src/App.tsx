@@ -2997,6 +2997,7 @@ const AdminDashboard = () => {
   const [adminMembers, setAdminMembers] = useState<Member[]>([]);
   const [memberApplications, setMemberApplications] = useState<MemberRoleApplication[]>([]);
   const [memberTypeFilter, setMemberTypeFilter] = useState<'all' | MemberType>('all');
+  const [viewingMember, setViewingMember] = useState<Member | null>(null);
   const [pushMessage, setPushMessage] = useState('');
   const [pushTarget, setPushTarget] = useState<'all' | MemberType>('all');
   const [pushSending, setPushSending] = useState(false);
@@ -5035,7 +5036,7 @@ const AdminDashboard = () => {
                       </thead>
                       <tbody className="divide-y divide-stone-50">
                         {filteredMembers.map(m => (
-                          <tr key={m.id}>
+                          <tr key={m.id} onClick={() => setViewingMember(m)} className="cursor-pointer hover:bg-orange-50/50 transition-colors">
                             <td className="py-3">
                               <p className="font-medium text-stone-800">{m.display_name || '—'}</p>
                               <p className="text-xs text-stone-400">{m.email}{m.phone ? ` · ${m.phone}` : ''}</p>
@@ -5254,6 +5255,78 @@ const AdminDashboard = () => {
           </div>
         </div>
       </div>
+
+      {/* 會員詳細資料 Modal */}
+      <AnimatePresence>
+        {viewingMember && (() => {
+          const apps = memberApplications.filter(a => a.user_id === viewingMember.id);
+          const statusText: Record<string, string> = { pending: '審核中', approved: '已通過', rejected: '未通過' };
+          const Row = ({ label, value }: { label: string; value: React.ReactNode }) => (
+            <div className="flex gap-3 py-2 border-b border-stone-50 last:border-0">
+              <span className="w-24 shrink-0 text-sm text-stone-400">{label}</span>
+              <span className="text-sm text-stone-800 break-all">{value || <span className="text-stone-300">—</span>}</span>
+            </div>
+          );
+          return (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setViewingMember(null)} className="absolute inset-0 bg-stone-900/60 backdrop-blur-sm" />
+              <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden">
+                <div className="p-6 border-b border-stone-100 flex justify-between items-center">
+                  <h3 className="text-lg font-bold">會員資料</h3>
+                  <button onClick={() => setViewingMember(null)} className="text-stone-400 hover:text-stone-600"><X className="w-6 h-6" /></button>
+                </div>
+                <div className="p-6 max-h-[70vh] overflow-y-auto">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-12 h-12 rounded-full bg-orange-100 flex items-center justify-center shrink-0"><User className="w-6 h-6 text-orange-600" /></div>
+                    <div className="min-w-0">
+                      <p className="font-bold text-stone-900 truncate">{viewingMember.display_name || '—'}</p>
+                      <span className={cn('px-2 py-0.5 rounded-full text-xs font-bold', memberTypeBadge(viewingMember.member_type))}>{memberTypeLabel(viewingMember.member_type)}</span>
+                    </div>
+                  </div>
+
+                  <Row label="Email" value={viewingMember.email} />
+                  <Row label="電話" value={viewingMember.phone} />
+                  <Row label="LINE 綁定" value={viewingMember.line_user_id ? <span className="text-[#06C755]">✓ 已綁定</span> : '未綁定'} />
+                  <Row label="行銷同意" value={viewingMember.marketing_consent ? <span className="text-emerald-600">✓ 同意</span> : '未同意'} />
+                  <Row label="註冊日" value={new Date(viewingMember.created_at).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' })} />
+
+                  {apps.length > 0 && (
+                    <div className="mt-5">
+                      <p className="text-sm font-bold text-stone-700 mb-2">身分申請紀錄</p>
+                      <div className="space-y-3">
+                        {apps.map(a => (
+                          <div key={a.id} className="border border-stone-100 rounded-xl p-3">
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className={cn('px-2 py-0.5 rounded-full text-xs font-bold', memberTypeBadge(a.requested_type))}>{memberTypeLabel(a.requested_type)}</span>
+                              <span className="text-xs text-stone-400">{statusText[a.status] || a.status}</span>
+                              <span className="text-xs text-stone-300 ml-auto">{new Date(a.created_at).toLocaleDateString('zh-TW', { timeZone: 'Asia/Taipei' })}</span>
+                            </div>
+                            <Row label="真實姓名" value={a.real_name} />
+                            <Row label="聯絡電話" value={a.contact_phone} />
+                            {a.requested_type === 'creator' ? (
+                              <>
+                                <Row label="平台/作品" value={a.platform_links} />
+                                <Row label="粉絲數" value={a.follower_count} />
+                              </>
+                            ) : (
+                              <>
+                                <Row label="公司/團體" value={a.company_name} />
+                                <Row label="統一編號" value={a.tax_id} />
+                              </>
+                            )}
+                            <Row label="備註" value={a.note} />
+                            {a.review_note && <Row label="審核備註" value={a.review_note} />}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            </div>
+          );
+        })()}
+      </AnimatePresence>
 
       {/* Event Modal */}
       <AnimatePresence>
