@@ -3002,11 +3002,15 @@ const AdminDashboard = () => {
   const [pushSending, setPushSending] = useState(false);
   const [pushMode, setPushMode] = useState<'text' | 'card'>('text');
   const [pushCard, setPushCard] = useState({ imageUrl: '', title: '', text: '', buttonLabel: '', buttonUrl: '' });
+  const [pushWhen, setPushWhen] = useState<'now' | 'schedule'>('now');
+  const [pushScheduleAt, setPushScheduleAt] = useState('');
   const [emailSubject, setEmailSubject] = useState('');
   const [emailBody, setEmailBody] = useState('');
   const [emailImage, setEmailImage] = useState('');
   const [emailTarget, setEmailTarget] = useState<'all' | MemberType>('all');
   const [emailSending, setEmailSending] = useState(false);
+  const [emailWhen, setEmailWhen] = useState<'now' | 'schedule'>('now');
+  const [emailScheduleAt, setEmailScheduleAt] = useState('');
   const [campaigns, setCampaigns] = useState<MessageCampaign[]>([]);
   const [adminRole, setAdminRole] = useState<'owner' | 'editor' | null>(null);
   const [myUserId, setMyUserId] = useState<string>('');
@@ -3300,23 +3304,58 @@ const AdminDashboard = () => {
     m.line_user_id && m.marketing_consent && (pushTarget === 'all' || m.member_type === pushTarget)
   ).length;
 
+  // 排程：寫入 message_campaigns（status=scheduled），由 campaign-run 到期執行
+  const scheduleCampaign = async (channel: 'line' | 'email', member_type: string, title: string, payload: any, recipientCount: number, whenStr: string) => {
+    if (!whenStr) { alert('請選擇排程時間'); return false; }
+    const at = new Date(whenStr);
+    if (isNaN(at.getTime()) || at.getTime() < Date.now() + 30_000) { alert('排程時間需在未來（至少 1 分鐘後）'); return false; }
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) { alert('登入已過期，請重新登入'); navigate('/login'); return false; }
+    const { error } = await supabase.from('message_campaigns').insert({
+      channel, status: 'scheduled', member_type, title, payload,
+      recipient_count: recipientCount, scheduled_at: at.toISOString(), created_by: session.user.id,
+    });
+    if (error) { alert(`排程失敗: ${error.message}`); return false; }
+    alert(`已排程於 ${at.toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' })} 寄送`);
+    return true;
+  };
+
+  const cancelCampaign = async (id: string) => {
+    if (!window.confirm('確定取消此排程？')) return;
+    const { error } = await supabase.from('message_campaigns').update({ status: 'canceled' }).eq('id', id).eq('status', 'scheduled');
+    if (error) { alert(`取消失敗: ${error.message}`); return; }
+    fetchData();
+  };
+
   const handleSendLinePush = async () => {
-    let payload: Record<string, unknown>;
+    let cPayload: any; let title: string;
     if (pushMode === 'card') {
       if (!pushCard.title.trim()) { alert('請輸入卡片標題'); return; }
       if (!pushCard.buttonLabel.trim() || !pushCard.buttonUrl.trim()) { alert('請填寫按鈕文字與連結'); return; }
-      payload = { mode: 'card', member_type: pushTarget, card: pushCard };
+      cPayload = { mode: 'card', card: pushCard };
+      title = pushCard.title.trim();
     } else {
       if (!pushMessage.trim()) { alert('請輸入訊息內容'); return; }
-      payload = { mode: 'text', message: pushMessage.trim(), member_type: pushTarget };
+      cPayload = { mode: 'text', message: pushMessage.trim() };
+      title = pushMessage.trim().slice(0, 60);
     }
     if (pushRecipientCount === 0) { alert('目前沒有符合條件的收件對象（需已綁定 LINE 且同意行銷）'); return; }
+
+    if (pushWhen === 'schedule') {
+      const ok = await scheduleCampaign('line', pushTarget, title, cPayload, pushRecipientCount, pushScheduleAt);
+      if (!ok) return;
+      setPushMessage('');
+      setPushCard({ imageUrl: '', title: '', text: '', buttonLabel: '', buttonUrl: '' });
+      setPushScheduleAt(''); setPushWhen('now');
+      fetchData();
+      return;
+    }
+
     if (!window.confirm(`確定發送給 ${pushRecipientCount} 位「已綁定 LINE 且同意行銷」的會員嗎？\n此動作會消耗官方帳號的推播訊息額度，且無法收回。`)) return;
-    // 送出前確認登入仍有效（過期會自動刷新；刷新失敗才導回登入）
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) { alert('登入已過期，請重新登入'); navigate('/login'); return; }
     setPushSending(true);
-    const { data, error } = await supabase.functions.invoke('line-push', { body: payload });
+    const { data, error } = await supabase.functions.invoke('line-push', { body: { ...cPayload, member_type: pushTarget } });
     setPushSending(false);
     if (error) {
       let m = '發送失敗，請稍後再試';
@@ -3339,6 +3378,16 @@ const AdminDashboard = () => {
     if (!emailSubject.trim()) { alert('請輸入主旨'); return; }
     if (!emailBody.trim()) { alert('請輸入內容'); return; }
     if (emailRecipientCount === 0) { alert('目前沒有符合條件的收件對象（需有 Email 且同意行銷）'); return; }
+
+    if (emailWhen === 'schedule') {
+      const ok = await scheduleCampaign('email', emailTarget, emailSubject.trim(),
+        { subject: emailSubject.trim(), body: emailBody, image_url: emailImage }, emailRecipientCount, emailScheduleAt);
+      if (!ok) return;
+      setEmailSubject(''); setEmailBody(''); setEmailImage(''); setEmailScheduleAt(''); setEmailWhen('now');
+      fetchData();
+      return;
+    }
+
     if (!window.confirm(`確定寄送給 ${emailRecipientCount} 位「有 Email 且同意行銷」的會員嗎？`)) return;
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) { alert('登入已過期，請重新登入'); navigate('/login'); return; }
@@ -4791,16 +4840,26 @@ const AdminDashboard = () => {
                     )}
 
                     <div className="flex items-center justify-between mt-3 flex-wrap gap-2">
-                      <p className="text-sm text-stone-500">
-                        預計送達 <span className="font-bold text-stone-800">{pushRecipientCount}</span> 位會員
-                        {pushMode === 'text' && <span className="text-stone-400 text-xs">（{pushMessage.length}/5000 字）</span>}
-                      </p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm text-stone-500">
+                          預計送達 <span className="font-bold text-stone-800">{pushRecipientCount}</span> 位會員
+                          {pushMode === 'text' && <span className="text-stone-400 text-xs">（{pushMessage.length}/5000 字）</span>}
+                        </p>
+                        <div className="inline-flex rounded-lg border border-stone-200 bg-white p-0.5">
+                          {([['now', '立即'], ['schedule', '排程']] as [string, string][]).map(([v, l]) => (
+                            <button key={v} onClick={() => setPushWhen(v as any)} className={cn('px-3 py-1 rounded-md text-xs font-medium', pushWhen === v ? 'bg-orange-600 text-white' : 'text-stone-500')}>{l}</button>
+                          ))}
+                        </div>
+                        {pushWhen === 'schedule' && (
+                          <input type="datetime-local" value={pushScheduleAt} onChange={(e) => setPushScheduleAt(e.target.value)} className="px-3 py-1.5 rounded-lg border border-stone-200 text-sm outline-none focus:ring-2 focus:ring-orange-600" />
+                        )}
+                      </div>
                       <button
                         onClick={handleSendLinePush}
                         disabled={pushSending || pushRecipientCount === 0 || (pushMode === 'text' ? !pushMessage.trim() : (!pushCard.title.trim() || !pushCard.buttonUrl.trim()))}
                         className="bg-[#06C755] text-white px-5 py-2.5 rounded-xl font-bold hover:brightness-95 transition-all flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
                       >
-                        <MessageCircle className="w-4 h-4" /> {pushSending ? '發送中…' : '發送推播'}
+                        <MessageCircle className="w-4 h-4" /> {pushSending ? '發送中…' : (pushWhen === 'schedule' ? '排程推播' : '發送推播')}
                       </button>
                     </div>
                   </div>
@@ -4851,13 +4910,23 @@ const AdminDashboard = () => {
                     />
 
                     <div className="flex items-center justify-between mt-3 flex-wrap gap-2">
-                      <p className="text-sm text-stone-500">預計寄送 <span className="font-bold text-stone-800">{emailRecipientCount}</span> 位會員</p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm text-stone-500">預計寄送 <span className="font-bold text-stone-800">{emailRecipientCount}</span> 位會員</p>
+                        <div className="inline-flex rounded-lg border border-stone-200 bg-white p-0.5">
+                          {([['now', '立即'], ['schedule', '排程']] as [string, string][]).map(([v, l]) => (
+                            <button key={v} onClick={() => setEmailWhen(v as any)} className={cn('px-3 py-1 rounded-md text-xs font-medium', emailWhen === v ? 'bg-orange-600 text-white' : 'text-stone-500')}>{l}</button>
+                          ))}
+                        </div>
+                        {emailWhen === 'schedule' && (
+                          <input type="datetime-local" value={emailScheduleAt} onChange={(e) => setEmailScheduleAt(e.target.value)} className="px-3 py-1.5 rounded-lg border border-stone-200 text-sm outline-none focus:ring-2 focus:ring-orange-600" />
+                        )}
+                      </div>
                       <button
                         onClick={handleSendEmail}
                         disabled={emailSending || emailRecipientCount === 0 || !emailSubject.trim() || !emailBody.trim()}
                         className="bg-orange-600 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-orange-500 transition-all flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
                       >
-                        <Mail className="w-4 h-4" /> {emailSending ? '寄送中…' : '寄送 Email'}
+                        <Mail className="w-4 h-4" /> {emailSending ? '寄送中…' : (emailWhen === 'schedule' ? '排程寄送' : '寄送 Email')}
                       </button>
                     </div>
                   </div>
@@ -4904,17 +4973,37 @@ const AdminDashboard = () => {
                     <div className="mb-8">
                       <h3 className="text-sm font-bold text-stone-800 mb-3">發送紀錄 <span className="text-stone-400 font-normal text-xs">（最近 30 筆）</span></h3>
                       <div className="border border-stone-100 rounded-2xl divide-y divide-stone-50 overflow-hidden">
-                        {campaigns.map(c => (
-                          <div key={c.id} className="flex items-center gap-3 px-4 py-3 flex-wrap">
-                            <span className={cn('px-2 py-0.5 rounded-full text-xs font-bold shrink-0', c.channel === 'line' ? 'bg-[#06C755]/10 text-[#06C755]' : 'bg-orange-100 text-orange-700')}>
-                              {c.channel === 'line' ? 'LINE' : 'Email'}
-                            </span>
-                            <span className="font-medium text-stone-800 truncate flex-1 min-w-[120px]">{c.title || '(無標題)'}</span>
-                            <span className="text-xs text-stone-400 shrink-0">{c.member_type === 'all' ? '全部' : memberTypeLabel(c.member_type)}</span>
-                            <span className="text-xs text-stone-500 shrink-0">成功 {c.sent_count}{c.failed_count ? ` · 失敗 ${c.failed_count}` : ''} / {c.recipient_count}</span>
-                            <span className="text-xs text-stone-400 shrink-0">{new Date(c.sent_at || c.created_at).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
-                          </div>
-                        ))}
+                        {campaigns.map(c => {
+                          const st: Record<string, [string, string]> = {
+                            scheduled: ['已排程', 'bg-amber-100 text-amber-700'],
+                            sending: ['寄送中', 'bg-blue-100 text-blue-700'],
+                            sent: ['已寄送', 'bg-emerald-100 text-emerald-700'],
+                            failed: ['失敗', 'bg-red-100 text-red-600'],
+                            canceled: ['已取消', 'bg-stone-100 text-stone-400'],
+                          };
+                          const fmt = (t: string) => new Date(t).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+                          return (
+                            <div key={c.id} className="flex items-center gap-3 px-4 py-3 flex-wrap">
+                              <span className={cn('px-2 py-0.5 rounded-full text-xs font-bold shrink-0', c.channel === 'line' ? 'bg-[#06C755]/10 text-[#06C755]' : 'bg-orange-100 text-orange-700')}>
+                                {c.channel === 'line' ? 'LINE' : 'Email'}
+                              </span>
+                              <span className={cn('px-2 py-0.5 rounded-full text-xs font-bold shrink-0', st[c.status]?.[1])}>{st[c.status]?.[0] || c.status}</span>
+                              <span className="font-medium text-stone-800 truncate flex-1 min-w-[120px]">{c.title || '(無標題)'}</span>
+                              <span className="text-xs text-stone-400 shrink-0">{c.member_type === 'all' ? '全部' : memberTypeLabel(c.member_type)}</span>
+                              {c.status === 'scheduled' ? (
+                                <>
+                                  <span className="text-xs text-amber-600 shrink-0">排程 {c.scheduled_at ? fmt(c.scheduled_at) : ''}</span>
+                                  <button onClick={() => cancelCampaign(c.id)} className="text-xs font-bold text-stone-400 hover:text-red-600 shrink-0">取消</button>
+                                </>
+                              ) : (
+                                <>
+                                  <span className="text-xs text-stone-500 shrink-0">成功 {c.sent_count}{c.failed_count ? ` · 失敗 ${c.failed_count}` : ''} / {c.recipient_count}</span>
+                                  <span className="text-xs text-stone-400 shrink-0">{fmt(c.sent_at || c.created_at)}</span>
+                                </>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   )}
