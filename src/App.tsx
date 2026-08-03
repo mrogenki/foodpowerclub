@@ -104,6 +104,16 @@ const MEMBER_TYPES: { value: MemberType; label: string; emoji: string; badge: st
 const memberTypeLabel = (t: string) => MEMBER_TYPES.find((m) => m.value === t)?.label || t;
 const memberTypeBadge = (t: string) => MEMBER_TYPES.find((m) => m.value === t)?.badge || 'bg-stone-100 text-stone-600';
 
+// 創作者社群平台
+const SOCIAL_PLATFORMS: { key: string; label: string }[] = [
+  { key: 'instagram', label: 'Instagram' },
+  { key: 'facebook', label: 'Facebook' },
+  { key: 'tiktok', label: 'TikTok' },
+  { key: 'youtube', label: 'YouTube' },
+  { key: 'threads', label: 'Threads' },
+];
+const emptySocial = () => Object.fromEntries(SOCIAL_PLATFORMS.map((p) => [p.key, { account: '', followers: '' }]));
+
 // LINE Login channel ID（非機密，可放前端；可用環境變數覆寫）
 const LINE_LOGIN_CHANNEL_ID = import.meta.env.VITE_LINE_LOGIN_CHANNEL_ID || '2010936799';
 
@@ -1767,7 +1777,8 @@ const MemberCenter = () => {
   // 升級申請表單
   const [showApplyForm, setShowApplyForm] = useState(false);
   const [applyType, setApplyType] = useState<'creator' | 'business'>('creator');
-  const [applyForm, setApplyForm] = useState({ real_name: '', contact_phone: '', platform_links: '', follower_count: '', company_name: '', tax_id: '', employee_count: '', company_address: '', note: '' });
+  const [applyForm, setApplyForm] = useState({ real_name: '', contact_phone: '', company_name: '', tax_id: '', employee_count: '', company_address: '', note: '' });
+  const [socialForm, setSocialForm] = useState<Record<string, { account: string; followers: string }>>(emptySocial() as any);
   const [applying, setApplying] = useState(false);
 
   const [lineMsg, setLineMsg] = useState('');
@@ -1843,6 +1854,17 @@ const MemberCenter = () => {
   const submitApplication = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!member) return;
+    // 只保留有填帳號的平台
+    const social = Object.fromEntries(
+      SOCIAL_PLATFORMS
+        .map((p) => [p.key, socialForm[p.key]])
+        .filter(([, v]: any) => (v.account || '').trim() || (v.followers || '').trim())
+        .map(([k, v]: any) => [k, { account: (v.account || '').trim(), followers: (v.followers || '').trim() }])
+    );
+    if (applyType === 'creator' && Object.keys(social).length === 0) {
+      alert('請至少填寫一個社群平台帳號');
+      return;
+    }
     setApplying(true);
     const payload = {
       user_id: member.id,
@@ -1850,8 +1872,7 @@ const MemberCenter = () => {
       status: 'pending' as const,
       real_name: applyForm.real_name || null,
       contact_phone: applyForm.contact_phone || null,
-      platform_links: applyType === 'creator' ? (applyForm.platform_links || null) : null,
-      follower_count: applyType === 'creator' ? (applyForm.follower_count || null) : null,
+      social_accounts: applyType === 'creator' ? social : null,
       company_name: applyType === 'business' ? (applyForm.company_name || null) : null,
       tax_id: applyType === 'business' ? (applyForm.tax_id || null) : null,
       employee_count: applyType === 'business' ? (applyForm.employee_count || null) : null,
@@ -1862,6 +1883,7 @@ const MemberCenter = () => {
     setApplying(false);
     if (error) { alert(`送出失敗: ${error.message}`); return; }
     setShowApplyForm(false);
+    setSocialForm(emptySocial() as any);
     load();
   };
 
@@ -2006,10 +2028,15 @@ const MemberCenter = () => {
                   <input value={applyForm.real_name} onChange={(e) => setApplyForm({ ...applyForm, real_name: e.target.value })} className="w-full px-4 py-2.5 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" placeholder="真實姓名 / 聯絡人" required />
                   <input value={applyForm.contact_phone} onChange={(e) => setApplyForm({ ...applyForm, contact_phone: e.target.value })} className="w-full px-4 py-2.5 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" placeholder="聯絡電話" required />
                   {applyType === 'creator' ? (
-                    <>
-                      <input value={applyForm.platform_links} onChange={(e) => setApplyForm({ ...applyForm, platform_links: e.target.value })} className="w-full px-4 py-2.5 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" placeholder="社群平台 / 作品連結（IG、YT、TikTok…）" required />
-                      <input value={applyForm.follower_count} onChange={(e) => setApplyForm({ ...applyForm, follower_count: e.target.value })} className="w-full px-4 py-2.5 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" placeholder="粉絲 / 追蹤數（例：IG 1.2 萬）" />
-                    </>
+                    <div className="space-y-2">
+                      <p className="text-xs text-stone-400">社群平台（有經營的填寫即可，至少一項）</p>
+                      {SOCIAL_PLATFORMS.map((p) => (
+                        <div key={p.key} className="grid grid-cols-2 gap-2">
+                          <input value={socialForm[p.key].account} onChange={(e) => setSocialForm({ ...socialForm, [p.key]: { ...socialForm[p.key], account: e.target.value } })} className="px-3 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600 text-sm" placeholder={`${p.label} 帳號`} />
+                          <input value={socialForm[p.key].followers} onChange={(e) => setSocialForm({ ...socialForm, [p.key]: { ...socialForm[p.key], followers: e.target.value } })} className="px-3 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600 text-sm" placeholder={`${p.label} 粉絲數`} />
+                        </div>
+                      ))}
+                    </div>
                   ) : (
                     <>
                       <input value={applyForm.company_name} onChange={(e) => setApplyForm({ ...applyForm, company_name: e.target.value })} className="w-full px-4 py-2.5 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" placeholder="公司 / 團體名稱" required />
@@ -5309,8 +5336,12 @@ const AdminDashboard = () => {
                             <Row label="聯絡電話" value={a.contact_phone} />
                             {a.requested_type === 'creator' ? (
                               <>
-                                <Row label="平台/作品" value={a.platform_links} />
-                                <Row label="粉絲數" value={a.follower_count} />
+                                {SOCIAL_PLATFORMS.filter(p => a.social_accounts?.[p.key]?.account || a.social_accounts?.[p.key]?.followers).map(p => (
+                                  <Row key={p.key} label={p.label} value={`${a.social_accounts?.[p.key]?.account || '—'}${a.social_accounts?.[p.key]?.followers ? `　粉絲 ${a.social_accounts[p.key].followers}` : ''}`} />
+                                ))}
+                                {/* 舊版自由文字（相容） */}
+                                {a.platform_links && <Row label="平台/作品" value={a.platform_links} />}
+                                {a.follower_count && <Row label="粉絲數" value={a.follower_count} />}
                               </>
                             ) : (
                               <>

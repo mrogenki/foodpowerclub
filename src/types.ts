@@ -26,8 +26,9 @@ export interface MemberRoleApplication {
   status: ApplicationStatus;
   real_name: string | null;
   contact_phone: string | null;
-  platform_links: string | null; // 創作者
-  follower_count: string | null; // 創作者
+  platform_links: string | null; // 創作者（舊版自由文字，保留相容）
+  follower_count: string | null; // 創作者（舊版自由文字，保留相容）
+  social_accounts: Record<string, { account?: string; followers?: string }> | null; // 創作者：各平台帳號+粉絲數
   company_name: string | null;   // 企業
   tax_id: string | null;         // 企業
   employee_count: string | null; // 企業：員工數
