@@ -544,6 +544,25 @@ const Home = () => {
         )}
       </section>
 
+      {/* 週週抽好禮 導流橫幅 */}
+      <section className="bg-gradient-to-r from-red-950 via-stone-900 to-orange-950 py-10 px-4">
+        <Link to="/join" className="group max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-white">
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shrink-0 shadow-lg">
+              <Gift className="w-7 h-7 text-stone-900" />
+            </div>
+            <div>
+              <p className="text-amber-300 text-xs font-bold tracking-widest mb-1">2026 燒肉祭 × 火鍋祭</p>
+              <h3 className="text-2xl font-black">加入會員・<span className="text-amber-400">週週抽好禮</span> 🎁</h3>
+              <p className="text-stone-300 text-sm">綁定官方 LINE，每週抽出 7 大品牌幸運得主</p>
+            </div>
+          </div>
+          <span className="shrink-0 inline-flex items-center gap-2 bg-orange-600 group-hover:bg-orange-500 text-white font-bold px-6 py-3 rounded-full transition-all group-hover:scale-105">
+            立即參加 <ChevronRight className="w-4 h-4" />
+          </span>
+        </Link>
+      </section>
+
       {/* 1. 近期活動 (Recent Events) */}
       <section className="py-24 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
