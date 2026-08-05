@@ -2124,16 +2124,6 @@ const LineCallback = () => {
 };
 
 // ── 活動宣傳頁（加入會員好禮） ────────────────────────────
-const FESTIVAL_PRIZES: { brand: string; prize: string; winners: string }[] = [
-  { brand: '鮮乳坊', prize: '8月：乳品研究所精裝版（每週 8 份）／9–12月：鮮乳坊保久乳 6入（每週 2 份）', winners: '每週多名' },
-  { brand: '桂冠食品', prize: '好好說頓飯・美味食材箱', winners: '每週 1 名' },
-  { brand: '南僑讚岐急凍熟麵', prize: '讚岐日式精選組', winners: '每週 2 名' },
-  { brand: '金色三麥 SUNMAI', prize: '零糖值啤酒 1 箱（500ml × 12 罐）', winners: '每週 1 名' },
-  { brand: '大苑子', prize: '夏日組合限定・西瓜×3＋芒果柳丁×3', winners: '每週 1 名' },
-  { brand: '春一枝', prize: 'mini 香橙冰棒（36g×12 支／組）', winners: '每週 1 名' },
-  { brand: '隨身醉愛袋袋酒', prize: '6 入隨身醉愛袋袋酒', winners: '每週 1 名' },
-];
-
 const JOIN_POINTS: { action: string; pts: string; note?: string }[] = [
   { action: '完成註冊', pts: '500' },
   { action: '下載 App', pts: '100' },
@@ -2214,24 +2204,14 @@ const JoinPage = () => {
       </section>
 
       {/* 週週抽好禮 獎品 */}
-      <section className="bg-stone-50 py-20 px-4">
+      <section className="bg-stone-950 py-20 px-4">
         <div className="max-w-5xl mx-auto">
-          <motion.div {...fade()} className="text-center mb-12">
+          <motion.div {...fade()} className="text-center mb-10">
             <span className="inline-block bg-orange-600 text-white text-xs font-bold px-3 py-1 rounded-full mb-3">週週抽好禮</span>
-            <h2 className="text-3xl font-black text-stone-900">7 大品牌・週週開獎</h2>
+            <h2 className="text-3xl font-black text-white">7 大品牌・週週開獎</h2>
           </motion.div>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {FESTIVAL_PRIZES.map((p, i) => (
-              <motion.div key={i} {...fade((i % 3) * 0.05)} className="bg-white rounded-2xl p-6 border border-stone-100 shadow-sm flex flex-col">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="font-black text-lg text-stone-900">{p.brand}</span>
-                  <span className="shrink-0 bg-amber-100 text-amber-700 text-xs font-bold px-2.5 py-1 rounded-full">{p.winners}</span>
-                </div>
-                <p className="text-sm text-stone-600 flex-grow">{p.prize}</p>
-              </motion.div>
-            ))}
-          </div>
-          <motion.p {...fade()} className="text-center text-xs text-stone-400 mt-8">主辦贈品以實物為準，主辦單位保有最終修改、變更、活動解釋及取消本活動之權利。</motion.p>
+          <motion.img {...fade(0.05)} src="/prizes-2026.jpg" alt="燒肉火鍋祭 週週抽好禮：鮮乳坊、桂冠食品、南僑讚岐、金色三麥、大苑子、春一枝、隨身醉愛袋袋酒" className="w-full rounded-2xl shadow-2xl" />
+          <motion.p {...fade()} className="text-center text-xs text-stone-500 mt-6">主辦贈品以實物為準，主辦單位保有最終修改、變更、活動解釋及取消本活動之權利。</motion.p>
         </div>
       </section>
 
