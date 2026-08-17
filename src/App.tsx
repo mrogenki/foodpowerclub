@@ -43,7 +43,9 @@ import {
   MessageCircle,
   Unlink,
   Gift,
-  Flame
+  Flame,
+  Coins,
+  Loader2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import ReactMarkdown from 'react-markdown';
@@ -68,7 +70,7 @@ const queryClient = new QueryClient({
   },
 });
 import { cn } from './lib/utils';
-import type { Event, EventCategory, Brand, Partner, Location, Review, KOLReview, Promotion, SignupSettings, SignupEntry, AdminUser, Member, MemberType, MemberRoleApplication, Draw, DrawWinner, DrawPool, MessageCampaign } from './types';
+import type { Event, EventCategory, Brand, Partner, Location, Review, KOLReview, Promotion, SignupSettings, SignupEntry, AdminUser, Member, MemberType, MemberRoleApplication, Draw, DrawWinner, DrawPool, MessageCampaign, MobileCardsSummary } from './types';
 
 import { APIProvider, Map, AdvancedMarker, Pin, InfoWindow, useMapsLibrary, useMap } from '@vis.gl/react-google-maps';
 
@@ -1783,6 +1785,118 @@ const MemberLogin = () => {
   );
 };
 
+// ── mobile.cards 點數 / 好禮卡（即時查詢） ────────────────
+const MobileCardsCard = ({ member }: { member: Member }) => {
+  const { data, isLoading, isError, refetch, isFetching } = useQuery<MobileCardsSummary>({
+    queryKey: ['mobilecards', member.id, member.phone],
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke('mobilecards', { body: {} });
+      if (error) throw error;
+      return data as MobileCardsSummary;
+    },
+    staleTime: 3 * 60 * 1000,
+  });
+
+  return (
+    <div className="bg-white rounded-3xl shadow-sm border border-stone-100 p-6 mb-6">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="font-bold text-stone-800 flex items-center gap-2">
+          <Coins className="w-5 h-5 text-orange-600" /> 我的點數・好禮
+        </h2>
+        <button
+          onClick={() => refetch()}
+          disabled={isFetching}
+          className="text-stone-400 hover:text-orange-600 transition-colors disabled:opacity-50"
+          title="重新整理"
+        >
+          <RefreshCw className={cn('w-4 h-4', isFetching && 'animate-spin')} />
+        </button>
+      </div>
+
+      {isLoading ? (
+        <div className="py-8 flex items-center justify-center text-stone-400 text-sm">
+          <Loader2 className="w-5 h-5 animate-spin mr-2" /> 查詢中...
+        </div>
+      ) : isError ? (
+        <div className="p-4 rounded-xl bg-red-50 text-red-600 text-sm">查詢失敗，請稍後再試。</div>
+      ) : !data?.linked ? (
+        <div className="p-4 rounded-xl bg-stone-50 text-stone-500 text-sm">
+          {data?.reason === 'no_phone'
+            ? '尚未查到點數。請於下方「個人資料」填寫手機號碼後儲存，即可同步 mobile.cards 會員點數。'
+            : '查無 mobile.cards 會員資料，請確認手機號碼與您在門市註冊的號碼一致。'}
+        </div>
+      ) : (
+        <div className="space-y-5">
+          {/* 點數主區 */}
+          <div className="flex items-end justify-between gap-4 flex-wrap">
+            <div>
+              <p className="text-sm text-stone-400 mb-1">目前點數</p>
+              <p className="text-4xl font-black text-orange-600 leading-none">
+                {(data.points ?? 0).toLocaleString()}
+                <span className="text-base font-bold text-stone-400 ml-1">點</span>
+              </p>
+            </div>
+            <div className="flex flex-col items-end gap-1.5">
+              {data.membergrade && (
+                <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700 flex items-center gap-1">
+                  <Star className="w-3.5 h-3.5" /> {data.membergrade}
+                </span>
+              )}
+              {data.memberdiscountcode && (
+                <span className="text-xs text-stone-400">折扣碼 {data.memberdiscountcode}</span>
+              )}
+            </div>
+          </div>
+
+          {/* 點數效期 / 預付金 */}
+          {(data.expirydate || data.prepaidpts != null) && (
+            <div className="flex flex-wrap gap-2 text-xs">
+              {data.expirydate && (
+                <span className="px-3 py-1.5 rounded-lg bg-stone-50 text-stone-500 flex items-center gap-1">
+                  <Clock className="w-3.5 h-3.5" /> 點數效期 {data.expirydate}
+                </span>
+              )}
+              {data.prepaidpts != null && (
+                <span className="px-3 py-1.5 rounded-lg bg-stone-50 text-stone-500">
+                  {data.prepaidname || '預付金'} {data.prepaidpts.toLocaleString()}
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* 可兌換好禮 */}
+          <div>
+            <p className="text-sm font-medium text-stone-600 mb-2 flex items-center gap-1.5">
+              <Gift className="w-4 h-4 text-orange-500" /> 可兌換好禮
+            </p>
+            {data.gifts && data.gifts.length > 0 ? (
+              <ul className="space-y-2">
+                {data.gifts.map((g) => (
+                  <li key={g.giftid} className="flex items-center justify-between gap-3 p-3 rounded-xl border border-stone-100 bg-stone-50">
+                    <div className="min-w-0 flex items-center gap-2">
+                      <Ticket className="w-4 h-4 text-orange-500 shrink-0" />
+                      <span className="text-sm text-stone-700 truncate">{g.name}</span>
+                    </div>
+                    <span className="text-sm font-bold text-orange-600 shrink-0">{g.pts.toLocaleString()} 點</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-stone-400">目前沒有可兌換的好禮。</p>
+            )}
+          </div>
+
+          {/* 未驗證手機的提醒：核銷/取碼需待簡訊驗證上線 */}
+          <p className="text-xs text-stone-400 flex items-start gap-1.5 pt-1">
+            <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+            點數／好禮依您填寫的手機號碼查詢，僅供參考。完成手機簡訊驗證後才可線上取得券碼與兌換。
+          </p>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ── 會員中心 ─────────────────────────────────────────────
 const MemberCenter = () => {
   const navigate = useNavigate();
@@ -1952,6 +2066,9 @@ const MemberCenter = () => {
             </span>
           </div>
         </div>
+
+        {/* mobile.cards 點數 / 好禮 */}
+        <MobileCardsCard member={member} />
 
         {/* LINE 綁定 */}
         <div className="bg-white rounded-3xl shadow-sm border border-stone-100 p-6 mb-6">
@@ -3311,7 +3428,6 @@ const AdminDashboard = () => {
   const [locationBusinessHours, setLocationBusinessHours] = useState('');
   const [locationAvgPrice, setLocationAvgPrice] = useState('');
   const [locationImageLoading, setLocationImageLoading] = useState(false);
-  const [locationEventIds, setLocationEventIds] = useState<string[]>([]);
   // 活動 modal 內勾選要顯示的品牌與贊助夥伴（多對多）
   const [allPartners, setAllPartners] = useState<Partner[]>([]);
   const [eventBrandIds, setEventBrandIds] = useState<string[]>([]);
@@ -3408,8 +3524,6 @@ const AdminDashboard = () => {
       setLocationOrderUrl(editingLocation.order_url || '');
       setLocationBusinessHours(editingLocation.business_hours || '');
       setLocationAvgPrice(editingLocation.avg_price || '');
-      supabase.from('location_events').select('event_id').eq('location_id', editingLocation.id)
-        .then(({ data }) => { setLocationEventIds(data?.map(r => r.event_id) || []); });
     } else {
       setEditorContent('');
       setImageUrl('');
@@ -4306,18 +4420,9 @@ const AdminDashboard = () => {
     }
     
     console.log('Location saved successfully');
-    const savedId = editingLocation?.id;
-    if (savedId) {
-      await supabase.from('location_events').delete().eq('location_id', savedId);
-      if (locationEventIds.length > 0) {
-        await supabase.from('location_events').insert(
-          locationEventIds.map(eid => ({ location_id: savedId, event_id: eid }))
-        );
-      }
-    }
+    // 地點↔活動關聯改由「活動列表 → 店家」統一維護，此處不再更動 location_events
     setShowLocationModal(false);
     setEditingLocation(null);
-    setLocationEventIds([]);
     fetchData();
   };
 
@@ -6837,32 +6942,8 @@ const AdminDashboard = () => {
                     />
                   </div>
 
-                  <div className="col-span-2">
-                    <label className="block text-sm font-medium text-stone-700 mb-3">
-                      參加活動 <span className="text-stone-400 font-normal text-xs">（勾選後在地圖上會特別標示）</span>
-                    </label>
-                    <div className="space-y-2">
-                      {allEvents.map(event => (
-                        <label key={event.id} className="flex items-center gap-3 p-3 rounded-xl border border-stone-100 hover:bg-orange-50 cursor-pointer transition-colors">
-                          <input
-                            type="checkbox"
-                            checked={locationEventIds.includes(event.id)}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setLocationEventIds([...locationEventIds, event.id]);
-                              } else {
-                                setLocationEventIds(locationEventIds.filter(id => id !== event.id));
-                              }
-                            }}
-                            className="w-4 h-4 accent-orange-600"
-                          />
-                          <span className="text-sm font-medium text-stone-700">{event.title}</span>
-                        </label>
-                      ))}
-                      {allEvents.length === 0 && (
-                        <p className="text-sm text-stone-400">尚無活動可選擇</p>
-                      )}
-                    </div>
+                  <div className="col-span-2 text-xs text-stone-400 bg-stone-50 rounded-xl p-3">
+                    參加活動請至「活動管理 → 該活動的 📍 店家」統一勾選維護。
                   </div>
                 </div>
                 <div className="pt-6 flex gap-4">

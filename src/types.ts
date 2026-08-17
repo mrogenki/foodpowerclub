@@ -17,6 +17,32 @@ export interface Member {
   updated_at: string;
 }
 
+// mobile.cards 點數 / 票券 摘要（由 mobilecards Edge Function 即時查詢回傳）
+export interface MobileCardsGift {
+  giftid: string;
+  name: string;
+  pts: number;
+  // giftcode（可核銷券碼）刻意不從後端回傳，待手機簡訊 OTP 驗證上線後再開放取碼/核銷
+}
+
+export interface MobileCardsSummary {
+  linked: boolean;
+  reason?: 'no_phone' | 'not_found';
+  code?: number | null;
+  message?: string | null;
+  memberid?: string | null;
+  name?: string | null;
+  points?: number;
+  membergrade?: string | null;
+  memberdiscountcode?: string | null;
+  isExternalMemberId?: boolean;
+  gifts?: MobileCardsGift[];
+  expirydate?: string | null;
+  totalpts?: number | null;
+  prepaidname?: string | null;
+  prepaidpts?: number | null;
+}
+
 export type ApplicationStatus = 'pending' | 'approved' | 'rejected';
 
 export interface MemberRoleApplication {
