@@ -1487,7 +1487,7 @@ const BrandDetail = () => {
                   "relative w-full max-w-5xl bg-black rounded-3xl overflow-hidden shadow-2xl",
                   selectedVideo.video_embed_url?.includes('tiktok') || 
                   selectedVideo.video_embed_url?.includes('shorts') || 
-                  selectedVideo.video_embed_url?.includes('reels') 
+                  selectedVideo.video_embed_url?.includes('reel') 
                     ? "max-w-sm aspect-[9/16]" 
                     : "aspect-video"
                 )}
@@ -3103,9 +3103,12 @@ const getEmbedUrl = (url: string) => {
   const tiktokMatch = url.match(/tiktok\.com\/.*\/video\/(\d+)/);
   if (tiktokMatch) return `https://www.tiktok.com/embed/v2/${tiktokMatch[1]}`;
   
-  // Instagram Reels
-  const reelsMatch = url.match(/instagram\.com\/(?:reels|reel)\/([^\/?#&]+)/);
-  if (reelsMatch) return `https://www.instagram.com/reels/${reelsMatch[1]}/embed`;
+  // Instagram Reels / 貼文 / IGTV（可嵌入的是單數 reel / p / tv 的 /embed）
+  const igMatch = url.match(/instagram\.com\/(reels?|p|tv)\/([^\/?#&]+)/);
+  if (igMatch) {
+    const type = igMatch[1] === 'reels' ? 'reel' : igMatch[1];
+    return `https://www.instagram.com/${type}/${igMatch[2]}/embed`;
+  }
   
   return url;
 };
@@ -3233,7 +3236,7 @@ const KOLReviewsPage = () => {
                 "relative w-full max-w-5xl bg-black rounded-3xl overflow-hidden shadow-2xl",
                 selectedVideo.video_embed_url?.includes('tiktok') || 
                 selectedVideo.video_embed_url?.includes('shorts') || 
-                selectedVideo.video_embed_url?.includes('reels') 
+                selectedVideo.video_embed_url?.includes('reel') 
                   ? "max-w-sm aspect-[9/16]" 
                   : "aspect-video"
               )}
