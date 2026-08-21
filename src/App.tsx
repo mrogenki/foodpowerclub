@@ -1484,25 +1484,26 @@ const BrandDetail = () => {
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.9, y: 20 }}
                 className={cn(
-                  "relative w-full max-w-5xl bg-black rounded-3xl overflow-hidden shadow-2xl",
-                  selectedVideo.video_embed_url?.includes('tiktok') || 
-                  selectedVideo.video_embed_url?.includes('shorts') || 
-                  selectedVideo.video_embed_url?.includes('reel') 
-                    ? "max-w-sm aspect-[9/16]" 
-                    : "aspect-video"
+                  "relative w-full rounded-3xl overflow-hidden shadow-2xl",
+                  selectedVideo.video_embed_url?.includes('instagram')
+                    ? "max-w-[400px] bg-white"
+                    : (selectedVideo.video_embed_url?.includes('tiktok') || selectedVideo.video_embed_url?.includes('shorts')
+                        ? "max-w-sm aspect-[9/16] bg-black"
+                        : "max-w-5xl aspect-video bg-black")
                 )}
               >
-                <button 
+                <button
                   onClick={() => setSelectedVideo(null)}
                   className="absolute top-4 right-4 z-10 p-2 bg-black/50 text-white rounded-full hover:bg-black/70 transition-colors"
                 >
                   <X className="w-6 h-6" />
                 </button>
-                
+
                 {selectedVideo.video_embed_url ? (
-                  <iframe 
+                  <iframe
                     src={getEmbedUrl(selectedVideo.video_embed_url) || ''}
-                    className="w-full h-full"
+                    className={cn("w-full", selectedVideo.video_embed_url?.includes('instagram') ? "h-[82vh] max-h-[720px]" : "h-full")}
+                    scrolling="no"
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                     allowFullScreen
                   />
@@ -3233,25 +3234,26 @@ const KOLReviewsPage = () => {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
               className={cn(
-                "relative w-full max-w-5xl bg-black rounded-3xl overflow-hidden shadow-2xl",
-                selectedVideo.video_embed_url?.includes('tiktok') || 
-                selectedVideo.video_embed_url?.includes('shorts') || 
-                selectedVideo.video_embed_url?.includes('reel') 
-                  ? "max-w-sm aspect-[9/16]" 
-                  : "aspect-video"
+                "relative w-full rounded-3xl overflow-hidden shadow-2xl",
+                selectedVideo.video_embed_url?.includes('instagram')
+                  ? "max-w-[400px] bg-white"
+                  : (selectedVideo.video_embed_url?.includes('tiktok') || selectedVideo.video_embed_url?.includes('shorts')
+                      ? "max-w-sm aspect-[9/16] bg-black"
+                      : "max-w-5xl aspect-video bg-black")
               )}
             >
-              <button 
+              <button
                 onClick={() => setSelectedVideo(null)}
                 className="absolute top-4 right-4 z-10 p-2 bg-black/50 text-white rounded-full hover:bg-black/70 transition-colors"
               >
                 <X className="w-6 h-6" />
               </button>
-              
+
               {selectedVideo.video_embed_url ? (
-                <iframe 
+                <iframe
                   src={getEmbedUrl(selectedVideo.video_embed_url) || ''}
-                  className="w-full h-full"
+                  className={cn("w-full", selectedVideo.video_embed_url?.includes('instagram') ? "h-[82vh] max-h-[720px]" : "h-full")}
+                  scrolling="no"
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                   allowFullScreen
                 />
