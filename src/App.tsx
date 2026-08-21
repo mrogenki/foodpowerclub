@@ -215,6 +215,34 @@ const BlockRenderer = ({ content }: { content: string }) => {
   );
 };
 
+// 從富文字內容（BlockNote JSON 或 Markdown/純文字）取出純文字摘要
+const extractPlainText = (raw: string): string => {
+  if (!raw) return '';
+  const s = raw.trim();
+  if (s.startsWith('[') || s.startsWith('{')) {
+    try {
+      const blocks = JSON.parse(s);
+      const walk = (arr: any[]): string =>
+        (arr || []).map((b: any) => {
+          const inline = Array.isArray(b.content) ? b.content.map((c: any) => c?.text || '').join('') : '';
+          const kids = Array.isArray(b.children) ? walk(b.children) : '';
+          return [inline, kids].filter(Boolean).join(' ');
+        }).join(' ');
+      return walk(Array.isArray(blocks) ? blocks : []).replace(/\s+/g, ' ').trim();
+    } catch { /* not JSON, fall through */ }
+  }
+  return s
+    .replace(/!\[.*?\]\(.*?\)/g, '')
+    .replace(/\[(.*?)\]\(.*?\)/g, '$1')
+    .replace(/[#>*_`~]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+};
+const contentExcerpt = (raw: string, n = 80): string => {
+  const t = extractPlainText(raw);
+  return t.length > n ? t.slice(0, n) + '…' : t;
+};
+
 const SafeImage = ({ src, alt, className, fallback = DEFAULT_EVENT_IMAGE, optimize = true, width = 800, loading = 'lazy', ...props }: any) => {
   const optimized = optimize ? optimizeImageUrl(src || '', width) : (src || '');
   const [imgSrc, setImgSrc] = useState(optimized || fallback);
@@ -1456,9 +1484,7 @@ const BrandDetail = () => {
                           <span className="font-bold text-stone-800 text-sm">{review.kol_name}</span>
                         </div>
                         <h3 className="font-bold mb-2 group-hover:text-orange-600 transition-colors">{review.title}</h3>
-                        <div className="text-stone-500 text-xs line-clamp-2">
-                          <BlockRenderer content={review.content} />
-                        </div>
+                        <p className="text-stone-500 text-xs line-clamp-2">{contentExcerpt(review.content, 70)}</p>
                       </div>
                     </div>
                   ))}
@@ -3190,9 +3216,7 @@ const KOLReviewsPage = () => {
                   )}
                 </div>
                 <h3 className="text-xl font-bold mb-2 group-hover:text-orange-600 transition-colors">{review.title}</h3>
-                <div className="text-stone-500 text-sm line-clamp-3 mb-4">
-                  <BlockRenderer content={review.content} />
-                </div>
+                <p className="text-stone-500 text-sm line-clamp-2 mb-4 min-h-[2.5rem]">{contentExcerpt(review.content, 90)}</p>
                 <div className="flex items-center justify-between text-xs text-stone-400">
                   <span className="flex items-center gap-1">
                     {review.media_type === 'video' ? <Play className="w-3 h-3" /> : <ImageIcon className="w-3 h-3" />}
