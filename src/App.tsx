@@ -1777,7 +1777,7 @@ const MemberLogin = () => {
                 {loading ? '寄送中...' : '寄送登入連結'}
               </button>
             </form>
-            <p className="text-xs text-stone-400 mt-4 text-center">首次登入會自動建立會員帳號</p>
+            <p className="text-xs text-stone-400 mt-4 text-center">首次登入會自動建立會員帳號<br />註冊即表示您同意 <Link to="/privacy" className="text-orange-600 hover:underline">隱私權政策</Link></p>
           </>
         )}
       </div>
@@ -2403,6 +2403,80 @@ const JoinPage = () => {
           </Link>
         </motion.div>
       </section>
+    </div>
+  );
+};
+
+// ── 隱私權政策 ────────────────────────────────────────────
+const PrivacyPage = () => {
+  const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
+    <div className="mb-8">
+      <h2 className="text-lg font-bold text-stone-900 mb-3">{title}</h2>
+      <div className="text-stone-600 text-sm leading-7 space-y-2">{children}</div>
+    </div>
+  );
+  return (
+    <div className="pt-24 pb-20 bg-white min-h-screen">
+      <div className="max-w-3xl mx-auto px-4">
+        <h1 className="text-3xl font-bold text-stone-900 mb-2">隱私權政策</h1>
+        <p className="text-sm text-stone-400 mb-10">最後更新日期：2026 年 8 月</p>
+
+        <Section title="一、關於我們">
+          <p>食在俱樂部官方網站／電商平台（<a href="https://www.foodpowerclub.com" className="text-orange-600">https://www.foodpowerclub.com</a>，以下簡稱「本網站」）由<strong>元氣先生有限公司</strong>（統一編號：53921764，以下簡稱「本公司」）經營。本公司非常重視您的隱私權，並依《個人資料保護法》及相關法令蒐集、處理及利用您的個人資料。使用本網站服務即表示您同意本政策之內容。</p>
+        </Section>
+
+        <Section title="二、蒐集之個人資料類別">
+          <p>當您註冊會員、綁定 LINE、參加活動或使用本網站服務時，我們可能蒐集下列資料：</p>
+          <p>・帳號識別資料：Email、第三方登入（Google／LINE）識別碼、LINE 使用者 ID<br />
+             ・會員資料：暱稱／姓名、聯絡電話<br />
+             ・行銷同意狀態<br />
+             ・創作者／企業申請資料：社群平台帳號與粉絲數、公司名稱、統一編號、公司地址、員工數等<br />
+             ・活動與報名資料：報名資訊、抽獎紀錄<br />
+             ・使用紀錄：瀏覽與操作之相關技術資訊（如 Cookie）</p>
+        </Section>
+
+        <Section title="三、蒐集目的與利用方式">
+          <p>我們基於下列目的蒐集與利用您的個人資料：會員管理與身分驗證、提供活動與抽獎服務、寄送優惠與活動通知（須經您同意）、客戶服務與聯繫、統計分析以改善服務。利用期間為會員關係存續期間及依法令應保存之期間；利用地區為本公司營運所需之地區。</p>
+        </Section>
+
+        <Section title="四、第三方服務與資料揭露">
+          <p>為提供服務，我們委託下列第三方協助處理資料，並要求其善盡保護義務：</p>
+          <p>・Supabase（資料庫與帳號驗證，資料儲存於日本東京機房）<br />
+             ・Google（Google 登入）<br />
+             ・LINE（LINE 登入與官方帳號訊息推播）<br />
+             ・Resend（電子郵件寄送）</p>
+          <p>除法令規定或經您同意外，本公司不會將您的個人資料提供、交換或出租予前述以外之第三人。</p>
+        </Section>
+
+        <Section title="五、您的權利">
+          <p>依《個人資料保護法》，您得就本公司保有之個人資料行使下列權利：查詢或請求閱覽、請求製給複製本、請求補充或更正、請求停止蒐集／處理／利用、請求刪除。</p>
+          <p>您可隨時登入<a href="/member" className="text-orange-600">會員中心</a>更新個人資料，或關閉「接收行銷資訊」以停止接收行銷訊息（退訂）。如需行使其他權利，請來信客服信箱。</p>
+        </Section>
+
+        <Section title="六、Cookie 之使用">
+          <p>本網站使用 Cookie 及類似技術以維持登入狀態、記住偏好並改善服務體驗。您可透過瀏覽器設定拒絕或刪除 Cookie，但可能影響部分功能之正常使用。</p>
+        </Section>
+
+        <Section title="七、資料安全">
+          <p>本公司採取合理之技術與管理措施保護個人資料，避免遭竊取、竄改、毀損、滅失或洩漏。惟網際網路傳輸無法保證絕對安全，請您妥善保管個人帳號資訊。</p>
+        </Section>
+
+        <Section title="八、未成年人保護">
+          <p>未滿十八歲之未成年人使用本網站服務，應於法定代理人或監護人閱讀、同意本政策後，方得使用。</p>
+        </Section>
+
+        <Section title="九、政策修訂">
+          <p>本公司保留隨時修訂本政策之權利，修訂後將公告於本網站。建議您不定期查閱以了解最新內容。</p>
+        </Section>
+
+        <Section title="十、聯絡我們">
+          <p>如對本政策或您的個人資料有任何疑問，歡迎與我們聯繫：</p>
+          <p>元氣先生有限公司<br />
+             統一編號：53921764<br />
+             地址：台北市羅斯福路三段 126 號 3 樓<br />
+             客服信箱：<a href="mailto:service@mygenki.com" className="text-orange-600">service@mygenki.com</a></p>
+        </Section>
+      </div>
     </div>
   );
 };
@@ -7022,6 +7096,7 @@ export default function App() {
             <Route path="/map" element={<MapPage />} />
             <Route path="/partners" element={<PartnersPage />} />
             <Route path="/join" element={<JoinPage />} />
+            <Route path="/privacy" element={<PrivacyPage />} />
             <Route path="/login" element={<Login />} />
             <Route path="/member/login" element={<MemberLogin />} />
             <Route path="/member/line-callback" element={<LineCallback />} />
@@ -7034,6 +7109,10 @@ export default function App() {
               <div className="flex items-center justify-center mb-6">
                 <img src="/logo-mark-white.png" alt="食在俱樂部 Food Power Club" className="h-10 w-auto" />
               </div>
+              <div className="flex items-center justify-center gap-4 mb-3 text-sm">
+                <Link to="/privacy" className="text-stone-400 hover:text-orange-500 transition-colors">隱私權政策</Link>
+              </div>
+              <p className="text-stone-500 text-xs mb-1">本網站由 元氣先生有限公司 經營（統一編號：53921764）</p>
               <p className="text-stone-500 text-sm mb-4">© 2026 Food Power Club. All rights reserved.</p>
               <Link to="/login" className="text-stone-800 text-[10px] hover:text-stone-700 transition-colors opacity-20 hover:opacity-100">管理登入</Link>
             </div>
