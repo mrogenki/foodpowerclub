@@ -3538,6 +3538,8 @@ const AdminDashboard = () => {
 
   const [imageUrl, setImageUrl] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
+  const [kolVideoUrl, setKolVideoUrl] = useState('');
+  const [fetchingCover, setFetchingCover] = useState(false);
   const [logoUrl, setLogoUrl] = useState('');
   
   const navigate = useNavigate();
@@ -3608,6 +3610,7 @@ const AdminDashboard = () => {
       setEditorContent(editingKOL.content || '');
       setImageUrl(editingKOL.media_url || '');
       setAvatarUrl(editingKOL.kol_avatar_url || '');
+      setKolVideoUrl(editingKOL.video_embed_url || '');
     } else if (editingPromotion) {
       setImageUrl(editingPromotion.image_url || '');
     } else if (editingLocation) {
@@ -3631,6 +3634,7 @@ const AdminDashboard = () => {
       setEditorContent('');
       setImageUrl('');
       setAvatarUrl('');
+      setKolVideoUrl('');
       setLogoUrl('');
       setEventBrandIds([]);
       setEventPartnerIds([]);
@@ -4036,6 +4040,22 @@ const AdminDashboard = () => {
     setEditorContent('');
     setLogoUrl('');
     fetchData();
+  };
+
+  const autoFetchCover = async () => {
+    const url = kolVideoUrl.trim();
+    if (!url) { alert('請先輸入影片連結'); return; }
+    // YouTube 直接由 ID 組縮圖（免 API）
+    const yt = url.match(/(?:youtube\.com\/(?:.*[?&]v=|shorts\/|embed\/)|youtu\.be\/)([\w-]{11})/);
+    if (yt) { setImageUrl(`https://img.youtube.com/vi/${yt[1]}/hqdefault.jpg`); return; }
+    if (/instagram\.com/.test(url)) { alert('Instagram 無法自動帶封面，請手動上傳一張封面圖'); return; }
+    // TikTok 等交給 Edge Function（避開 CORS）
+    setFetchingCover(true);
+    const { data, error } = await supabase.functions.invoke('fetch-cover', { body: { url } });
+    setFetchingCover(false);
+    if (error) { alert('抓取失敗，請稍後再試或手動上傳'); return; }
+    if (data?.thumbnail) setImageUrl(data.thumbnail);
+    else alert(data?.error || '此連結無法自動帶封面，請手動上傳');
   };
 
   const handleSaveKOL = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -6119,13 +6139,24 @@ const AdminDashboard = () => {
                   </div>
                   <div className="col-span-2">
                     <label className="block text-sm font-medium text-stone-700 mb-2">影片連結 (YouTube, TikTok, Reels 等)</label>
-                    <input 
-                      name="video_embed_url" 
-                      placeholder="請輸入影片網址..."
-                      defaultValue={editingKOL?.video_embed_url} 
-                      className="w-full px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600" 
-                    />
-                    <p className="mt-1 text-xs text-stone-400">支援 YouTube, Shorts, TikTok, Instagram Reels 連結</p>
+                    <div className="flex gap-2">
+                      <input
+                        name="video_embed_url"
+                        placeholder="請輸入影片網址..."
+                        value={kolVideoUrl}
+                        onChange={(e) => setKolVideoUrl(e.target.value)}
+                        className="flex-1 px-4 py-2 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-orange-600"
+                      />
+                      <button
+                        type="button"
+                        onClick={autoFetchCover}
+                        disabled={fetchingCover}
+                        className="shrink-0 px-4 rounded-xl border border-orange-200 text-orange-600 text-sm font-bold hover:bg-orange-50 disabled:opacity-50 whitespace-nowrap"
+                      >
+                        {fetchingCover ? '抓取中…' : '自動帶封面'}
+                      </button>
+                    </div>
+                    <p className="mt-1 text-xs text-stone-400">YouTube／TikTok 可按「自動帶封面」；Instagram 請手動上傳封面</p>
                   </div>
                   <div>
                     <ImageUpload 
