@@ -111,8 +111,9 @@ npm run lint      # tsc --noEmit 型別檢查
 
 **Storage Bucket**：`images`（小寫，public）
 - 圖片路徑：`locations/gplace_{timestamp}.jpg`
-- 圖片最佳化：使用 `/storage/v1/render/image/public/` 路徑 + `?width=N&quality=80`
-- Image Transformation 已開啟（Settings > Storage > Enable image transformation = ON）
+- 圖片最佳化：**2026-10 起停用 Supabase Image Transformation**（`IMAGE_TRANSFORM_ENABLED = false`）。Pro Plan 每月只含 100 張原圖轉換額度，整個組織（含 dispatch 等其他專案）共用，曾因本站超標而全組織被標記。
+- 改為上傳時前端壓縮：`uploadImage()` 會先呼叫 `compressImage()`（最長邊 1600px、WebP、品質 0.8），前台直接讀原圖
+- ⚠️ 不要再新增 `/render/image/` 用法；要縮圖請在上傳端處理
 
 ## Supabase Edge Functions
 
