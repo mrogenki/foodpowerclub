@@ -138,7 +138,12 @@ const formatEventPeriod = (event: Event) => {
 // --- Utilities ---
 
 // Supabase Storage 圖片轉換（自動縮圖 + WebP）
+// 2026-10 停用：Pro Plan 每月只含 100 張原圖轉換額度，整個組織共用，已超標。
+// 改為上傳時在前端壓縮（見 compressImage），前台直接讀原圖。
+// 若要恢復，把 IMAGE_TRANSFORM_ENABLED 改回 true。
+const IMAGE_TRANSFORM_ENABLED = false;
 const optimizeImageUrl = (url: string, width: number = 800): string => {
+  if (!IMAGE_TRANSFORM_ENABLED) return url;
   if (!url || !url.includes('supabase.co/storage/v1/object/public/')) return url;
   // Supabase Image Transformation: /object/public/ → /render/image/public/
   // resize=contain 保持原始比例不裁切
@@ -148,7 +153,33 @@ const optimizeImageUrl = (url: string, width: number = 800): string => {
   ) + `?width=${width}&quality=80&resize=contain`;
 };
 
-const uploadImage = async (file: File, folder: string = 'uploads') => {
+// 上傳前在瀏覽器壓縮：最長邊 1600px、轉 WebP、品質 0.8
+// GIF / SVG / 非圖片檔不處理；壓縮後反而變大就保留原檔
+const compressImage = async (file: File, maxSide = 1600, quality = 0.8): Promise<File> => {
+  if (!file.type.startsWith('image/') || file.type === 'image/gif' || file.type === 'image/svg+xml') return file;
+  try {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
+    const w = Math.round(bitmap.width * scale);
+    const h = Math.round(bitmap.height * scale);
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return file;
+    ctx.drawImage(bitmap, 0, 0, w, h);
+    bitmap.close();
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/webp', quality));
+    if (!blob || blob.type !== 'image/webp' || blob.size >= file.size) return file;
+    const baseName = file.name.replace(/\.[^.]+$/, '');
+    return new File([blob], `${baseName}.webp`, { type: 'image/webp' });
+  } catch {
+    return file; // 瀏覽器不支援或解碼失敗 → 照原檔上傳
+  }
+};
+
+const uploadImage = async (rawFile: File, folder: string = 'uploads') => {
+  const file = await compressImage(rawFile);
   const fileExt = file.name.split('.').pop();
   const fileName = `${Math.random().toString(36).substring(2)}.${fileExt}`;
   const filePath = `${folder}/${fileName}`;
